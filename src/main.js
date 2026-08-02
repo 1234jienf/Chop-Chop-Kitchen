@@ -12,7 +12,23 @@ let audioContext = null;
 let analyser = null;
 let animationId = null;
 
+const RESTAURANT_EXTERIORS = [
+  { name: '푸드트럭', file: '식당외관_푸드트럭.png', heading: '작은 주방에서<br>큰 이야기가 시작됩니다' },
+  { name: '비스트로', file: '식당외관_비스트로.png', heading: '우리만의 공간이<br>조금 더 근사해졌습니다' },
+  { name: '레스토랑', file: '식당외관_레스토랑.png', heading: '더 큰 무대에서<br>새로운 손님을 맞이합니다' },
+  { name: '고급 레스토랑', file: '식당외관_고급레스토랑.png', heading: '마침내 꿈꾸던<br>최고의 식당이 되었습니다' },
+];
+
+function renderRestaurantExterior() {
+  const exterior = RESTAURANT_EXTERIORS[Math.min(Math.max(state.day, 1), 4) - 1];
+  $('#restaurantDayLabel').textContent = `DAY ${state.day} · ${exterior.name}`;
+  $('#restaurantHeading').innerHTML = exterior.heading;
+  $('#restaurantExterior').src = `./src/assets/배경/${exterior.file}`;
+  $('#restaurantExterior').alt = `Chop-Chop Kitchen ${exterior.name} 외관`;
+}
+
 function showScreen(name) {
+  if (name === 'restaurant') renderRestaurantExterior();
   document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.dataset.screen === name));
   window.scrollTo(0, 0);
 }
@@ -46,7 +62,7 @@ $('#playerSetup').addEventListener('input', event => { if (event.target.matches(
 $('#confirmTeamBtn').addEventListener('click', () => { renderGame(); showScreen('game'); });
 $('#successBtn').addEventListener('click', () => { submitStep(state, 90); renderGame(); });
 $('#missBtn',).addEventListener('click', () => { submitStep(state, 45); renderGame(); });
-$('#nextDayBtn').addEventListener('click', () => { startNextDay(state); renderGame(); showScreen('game'); });
+$('#nextDayBtn').addEventListener('click', () => { startNextDay(state); showScreen('restaurant'); });
 
 // 실시간 볼륨 시각화 시작 함수
 function startVolumeVisualizer(stream) {
