@@ -363,7 +363,19 @@ html,body{height:auto;overflow-y:auto}
   z-index:6;
   pointer-events:none;
 }
-.live-slices .burst-clip{animation:none; transform:translateX(var(--spread,0))}
+.live-slices .burst-clip{
+  animation:none;
+  transform:translateX(var(--spread,0));
+  filter:drop-shadow(0 6px 4px #0005);
+}
+.live-slices .burst-clip.is-fresh{
+  animation:sliceFresh .28s ease;
+}
+@keyframes sliceFresh{
+  0%{transform:translateX(0) scale(1); filter:brightness(1.3)}
+  55%{transform:translateX(var(--spread,0)) scale(1.04); filter:brightness(1.1)}
+  100%{transform:translateX(var(--spread,0)) scale(1); filter:brightness(1)}
+}
 
 /* tone down aggressive zoom that blows layout */
 .counter-scene.is-cutting.is-zoomed .kitchen-bg-img{

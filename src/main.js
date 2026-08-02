@@ -14,6 +14,7 @@ import {
   countTakInText,
   createCutSession,
   crossSectionFrom,
+  detectTakBurst,
   playCannedCut,
   renderCutBoard,
   resetCutSession,
@@ -31,6 +32,8 @@ let lastFrameTs = 0;
 let speechRec = null;
 let speechWanted = false;
 let lastSpeechTakAt = 0;
+let wasAboveBurst = false;
+let speechKickTimer = null;
 
 let audioContext = null;
 let analyser = null;
@@ -285,8 +288,30 @@ $('#missBtn').addEventListener('click', () => {
 });
 $('#nextDayBtn').addEventListener('click', () => { startNextDay(state); showScreen('restaurant'); });
 
+function applyTakHit(sourceLabel) {
+  const now = performance.now();
+  if (now - lastSpeechTakAt < 280) return;
+  lastSpeechTakAt = now;
+
+  const result = tryChopOnTak(cutSession, {
+    knifeEl: $('#knifeHand'),
+    boardEl: $('#cutBoard'),
+  });
+  if (result === 'complete') {
+    setTimeout(() => finishVoiceCut(), 450);
+  } else if (result === 'hit') {
+    $('#micStatus').textContent = `${sourceLabel} · 정확! (${cutSession.actualCuts.length}/${cutSession.marks.length})`;
+  } else if (result === 'off') {
+    $('#micStatus').textContent = `${sourceLabel} · 어긋난 컷 (${cutSession.actualCuts.length}/${cutSession.marks.length})`;
+  }
+}
+
 function stopTakSpeech() {
   speechWanted = false;
+  if (speechKickTimer) {
+    clearInterval(speechKickTimer);
+    speechKickTimer = null;
+  }
   if (!speechRec) return;
   try {
     speechRec.onend = null;
@@ -300,7 +325,7 @@ function stopTakSpeech() {
 function startTakSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    $('#micStatus').textContent = '이 브라우저는 음성인식 미지원 · Chrome 권장';
+    $('#micStatus').textContent = '음성인식 미지원 · 파열음 보조만 사용 (Chrome 권장)';
     return false;
   }
 
@@ -310,31 +335,33 @@ function startTakSpeech() {
   speechRec.lang = 'ko-KR';
   speechRec.continuous = true;
   speechRec.interimResults = true;
-  speechRec.maxAlternatives = 3;
+  speechRec.maxAlternatives = 5;
 
   speechRec.onresult = (event) => {
     if (!peakArmed || !cutSession.listening || cutSession.finished || cutSession.animating) return;
 
     let chunk = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
-      chunk += event.results[i][0]?.transcript || '';
+      const result = event.results[i];
+      for (let a = 0; a < result.length; a++) {
+        chunk += ` ${result[a]?.transcript || ''}`;
+      }
     }
+
     const n = countTakInText(chunk);
-    if (!n) return;
+    if (!n) {
+      const preview = chunk.trim().slice(0, 18);
+      if (preview) {
+        const now = performance.now();
+        if (now - (cutSession._heardAt || 0) > 700) {
+          cutSession._heardAt = now;
+          $('#micStatus').textContent = `들음: “${preview}” · 「탁」에 더 가깝게`;
+        }
+      }
+      return;
+    }
 
-    const now = performance.now();
-    if (now - lastSpeechTakAt < 240) return;
-
-    // 한 이벤트에서 탁이 여러 번이면 첫 1회만 (연타는 다음 인식에서)
-    lastSpeechTakAt = now;
-    const result = tryChopOnTak(cutSession, {
-      knifeEl: $('#knifeHand'),
-      boardEl: $('#cutBoard'),
-    });
-    if (result === 'complete') finishVoiceCut();
-    else if (result === 'hit') $('#micStatus').textContent = `인식: 「탁」 · 정확!`;
-    else if (result === 'off') $('#micStatus').textContent = `인식: 「탁」 · 어긋난 컷!`;
-    else if (result === 'miss-timing') $('#micStatus').textContent = `「탁」 인식 · 점선 타이밍 빗김`;
+    applyTakHit('STT 「탁」');
   };
 
   speechRec.onerror = (event) => {
@@ -351,6 +378,14 @@ function startTakSpeech() {
     } catch (_) { /* restart race */ }
   };
 
+  // continuous가 가끔 멈추면 주기적으로 재시작
+  speechKickTimer = setInterval(() => {
+    if (!speechWanted || !speechRec || !micOn) return;
+    try {
+      speechRec.stop();
+    } catch (_) { /* onend가 다시 start */ }
+  }, 3500);
+
   try {
     speechRec.start();
     return true;
@@ -363,6 +398,7 @@ function startTakSpeech() {
 function stopLiveMic() {
   micOn = false;
   lastFrameTs = 0;
+  wasAboveBurst = false;
   stopTakSpeech();
   setListening(cutSession, false);
   if (animationId) cancelAnimationFrame(animationId);
@@ -383,9 +419,11 @@ function tickLiveMic(ts) {
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
 
-  if (analyser) {
-    const freq = new Uint8Array(analyser.frequencyBinCount);
+  const freq = analyser ? new Uint8Array(analyser.frequencyBinCount) : null;
+  const wave = analyser ? new Uint8Array(analyser.fftSize) : null;
+  if (analyser && freq && wave) {
     analyser.getByteFrequencyData(freq);
+    analyser.getByteTimeDomainData(wave);
     let sum = 0;
     for (let i = 0; i < freq.length; i++) sum += freq[i];
     $('#voiceBar').style.width = `${Math.min(100, Math.floor((sum / freq.length / 128) * 100))}%`;
@@ -417,6 +455,21 @@ function tickLiveMic(ts) {
         el.classList.toggle('hot', i === hot);
       });
     }
+
+    // STT가 짧은 탁을 놓치면 파열음 보조로 절단
+    if (freq && wave && cutSession.listening) {
+      const sampleRate = audioContext?.sampleRate || 48000;
+      const { hit, above, kind } = detectTakBurst(freq, wave, wasAboveBurst, sampleRate);
+      wasAboveBurst = above;
+      if (hit) applyTakHit('파열음 「탁」');
+      else if (kind === 'thump' && above) {
+        const now = performance.now();
+        if (now - (cutSession._rejectAt || 0) > 800) {
+          cutSession._rejectAt = now;
+          $('#micStatus').textContent = '충격음 무시 · 입으로 「탁」';
+        }
+      }
+    }
   }
 
   animationId = requestAnimationFrame(tickLiveMic);
@@ -438,20 +491,21 @@ $('#micBtn').addEventListener('click', async () => {
     const source = audioContext.createMediaStreamSource(liveStream);
     analyser = audioContext.createAnalyser();
     analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.4;
+    analyser.smoothingTimeConstant = 0.25;
     source.connect(analyser);
 
     micOn = true;
     lastFrameTs = 0;
     lastSpeechTakAt = 0;
+    wasAboveBurst = false;
     $('#micBtn').textContent = '마이크 끄기';
 
     if (peakArmed) {
       setListening(cutSession, true);
       const ok = startTakSpeech();
       $('#micStatus').textContent = ok
-        ? '음성인식 ON · 점선에서 입으로 「탁」'
-        : '음성인식 불가 · Chrome에서 다시 시도';
+        ? '듣는 중 · 「탁」 크게 · STT+파열음 보조'
+        : '파열음 보조만 ON · 「탁」처럼 짧게';
     } else {
       $('#micStatus').textContent = '볼륨 측정 중 (이 공정은 버튼으로 진행)';
     }

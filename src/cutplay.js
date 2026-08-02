@@ -1,7 +1,7 @@
 /**
  * 썰기 로직
  * - 칼 자동 L→R
- * - 「탁」 인식 시 칼 위치에서 무조건 절단 (점선=정답, 밖=어긋난 재미 컷)
+ * - 「탁」 인식 시 칼 위치에서 무조건 절단 (점선=정답)
  * - 실제 자른 위치 그대로 조각 표시
  */
 
@@ -72,17 +72,57 @@ export function setKnifeListening(_knifeEl, _on) {}
 
 export function countTakInText(text) {
   if (!text) return 0;
-  const ko = text.match(/탁|딱/g);
+  const compact = String(text).replace(/\s+/g, '');
+  const lower = compact.toLowerCase();
+
+  const ko = compact.match(/탁|딱|닥|턱|톡|탘/g);
   if (ko?.length) return ko.length;
-  const en = text.toLowerCase().match(/\btak\b/g);
-  return en?.length || 0;
+
+  const en = lower.match(/tak+|tack+|tuk+|tok+|tag+/g);
+  if (en?.length) return en.length;
+
+  if (compact.length <= 3 && /^(타|따|다|턱)+!?$/.test(compact)) return 1;
+
+  return 0;
 }
 
-export function detectTak(freq, wave, wasAbove) {
+
+export function detectTakBurst(freq, wave, wasAbove, sampleRate = 48000) {
   let peak = 0;
   for (let i = 0; i < wave.length; i++) peak = Math.max(peak, Math.abs(wave[i] - 128));
   const level = Math.min(100, (peak / 128) * 100);
-  return { hit: false, above: level >= 20, kind: 'none', level };
+  const above = level >= 28;
+  const onset = above && !wasAbove;
+  if (!onset) return { hit: false, above, kind: 'none', level };
+
+  const binHz = sampleRate / 2 / freq.length;
+  let low = 0;
+  let mid = 0;
+  let high = 0;
+  let total = 0;
+  for (let i = 0; i < freq.length; i++) {
+    const hz = i * binHz;
+    const v = freq[i];
+    total += v;
+    if (hz < 400) low += v;
+    else if (hz < 5500) mid += v;
+    else high += v;
+  }
+  if (total < 12) return { hit: false, above, kind: 'quiet', level };
+
+  const lowRatio = low / total;
+  const midRatio = mid / total;
+  const highRatio = high / total;
+
+  if (lowRatio > 0.38) return { hit: false, above, kind: 'thump', level, lowRatio, midRatio };
+  if (midRatio + highRatio >= 0.55 && midRatio >= 0.3 && level >= 30) {
+    return { hit: true, above, kind: 'burst', level, lowRatio, midRatio };
+  }
+  return { hit: false, above, kind: 'noise', level, lowRatio, midRatio };
+}
+
+export function detectTak(freq, wave, wasAbove, sampleRate = 48000) {
+  return detectTakBurst(freq, wave, wasAbove, sampleRate);
 }
 
 export function detectPeak(level, wasAbove) {
@@ -171,7 +211,7 @@ function guidesHtml(session) {
 }
 
 /** 실제 자른 위치 기준으로 조각 렌더 (진행 중 / 최종 공통) */
-function buildSliceParts(session, { spreadScale = 6, gapPx = 5 } = {}) {
+function buildSliceParts(session, { spreadScale = 6, gapPx = 12, fresh = false } = {}) {
   const ver = session.assetVer || '1';
   const src = `./src/assets/재료/${session.ingredientFile}?${ver}`;
   const size = TOMATO_SIZE;
@@ -179,14 +219,17 @@ function buildSliceParts(session, { spreadScale = 6, gapPx = 5 } = {}) {
   const points = [0, ...cuts, 1];
   let cursor = 0;
   const parts = [];
+  const lastCut = cuts.length ? cuts[cuts.length - 1] : null;
 
   for (let i = 0; i < points.length - 1; i++) {
     const start = points[i];
     const end = points[i + 1];
     const w = Math.max(2, size * (end - start));
     const spread = (i - (points.length - 2) / 2) * spreadScale;
+    // 생긴 틈 양쪽 조각에 팝 애니메이션
+    const isFresh = fresh && lastCut != null && (Math.abs(end - lastCut) < 0.001 || Math.abs(start - lastCut) < 0.001);
     parts.push(`
-      <div class="burst-clip" style="left:${cursor}px;width:${w}px;height:${size}px;--spread:${spread}px;--delay:${i * 35}ms">
+      <div class="burst-clip${isFresh ? ' is-fresh' : ''}" style="left:${cursor}px;width:${w}px;height:${size}px;--spread:${spread}px;--delay:0ms">
         <img src="${src}" alt="" style="width:${size}px;height:${size}px;margin-left:${-start * size}px" draggable="false" />
       </div>
     `);
@@ -232,7 +275,7 @@ export function tryChopOnTak(session, { knifeEl, boardEl } = {}) {
   else session.onStatus?.(`어긋난 컷! 그래도 썰림 · ${n}/${total}`);
 
   if (boardEl) {
-    renderLiveTomato(boardEl, session);
+    renderLiveTomato(boardEl, session, { justCut: true });
     if (knifeEl) attachKnifeToTomato(boardEl, knifeEl, session.knifeX);
   }
 
@@ -293,7 +336,7 @@ export async function playCannedCut(session, { knifeEl, boardEl } = {}) {
     session.cutDone[i] = true;
     playChopAnim(knifeEl);
     if (boardEl) {
-      renderLiveTomato(boardEl, session);
+      renderLiveTomato(boardEl, session, { justCut: true });
       if (knifeEl) attachKnifeToTomato(boardEl, knifeEl, session.knifeX);
     }
     await wait(150);
@@ -304,7 +347,7 @@ export async function playCannedCut(session, { knifeEl, boardEl } = {}) {
 }
 
 /** 진행 중: 실제 컷 위치로 갈라진 토마토 + 점선(정답 가이드) */
-export function renderLiveTomato(root, session) {
+export function renderLiveTomato(root, session, { justCut = false } = {}) {
   if (!root || !session.ingredientFile) return;
   root.hidden = false;
   root.classList.remove('is-burst');
@@ -328,7 +371,11 @@ export function renderLiveTomato(root, session) {
     return;
   }
 
-  const { parts, width, size } = buildSliceParts(session, { spreadScale: 4, gapPx: 4 });
+  const { parts, width, size } = buildSliceParts(session, {
+    spreadScale: 10,
+    gapPx: 14,
+    fresh: justCut,
+  });
   root.innerHTML = `
     <div class="cut-stage cut-stage--ready">
       <div class="cut-arena cut-arena--sliced" style="width:${Math.max(TOMATO_SIZE, width)}px;height:${size}px">
@@ -337,7 +384,7 @@ export function renderLiveTomato(root, session) {
           <div class="cut-guides cut-guides--over">${guides}</div>
         </div>
       </div>
-      <p class="cut-hint">점선=정답 · 어긋나도 <b>자른 자리</b> 그대로</p>
+      <p class="cut-hint">탁할 때마다 <b>바로</b> 갈라짐 · ${session.actualCuts.length}/${needCuts(session)}</p>
     </div>
   `;
 }
