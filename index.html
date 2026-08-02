@@ -41,7 +41,7 @@
           <h2>오늘의 릴레이 순서를 정하세요</h2>
           <p class="muted">각 셰프는 순서대로 자르기, 끓이기, 굽기 공정을 이어받습니다.</p>
           <div id="playerSetup" class="player-setup"></div>
-          <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드 위 화살표를 눌러 릴레이 순서를 바꿀 수 있습니다.</p></div>
+          <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드를 꾹 누른 채 원하는 위치로 끌어 놓으세요.</p></div>
           <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">이 순서로 시작하기 →</button></div>
         </div>
       </section>
@@ -55,7 +55,7 @@
           </aside>
           <section class="kitchen-stage">
             <div class="stage-top"><div><p id="playerLabel" class="eyebrow"></p><h2 id="stepTitle"></h2><p id="stepHint" class="muted"></p></div><span id="stepCount" class="step-count"></span></div>
-            <div class="counter-scene"><span id="stationLabel" class="station-label"></span><div id="stationIcon" class="station-icon">🔪</div><div class="hands"><span>🫲</span><span>🫱</span></div></div>
+            <div class="counter-scene"><span id="stationLabel" class="station-label"></span><img id="cutIngredient" class="cut-ingredient" alt="" hidden><div id="stationIcon" class="station-icon">🔪</div><div class="hands"><span>🫲</span><span>🫱</span></div></div>
             <div class="meter"><div id="voiceBar"></div></div><p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
             <div class="actions"><button id="micBtn" class="secondary">마이크 켜기</button><button id="missBtn" class="danger">실수 입력</button><button id="successBtn" class="primary">성공 입력</button></div>
           </section>

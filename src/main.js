@@ -19,6 +19,13 @@ const RESTAURANT_EXTERIORS = [
   { name: '고급 레스토랑', file: '식당외관_고급레스토랑_투명.png', heading: '마침내 꿈꾸던<br>최고의 식당이 되었습니다' },
 ];
 
+const CUT_INGREDIENTS = {
+  '브루스케타': '바게트.png',
+  '클램 차우더': '감자.png',
+  '스테이크 플레이트': '양파.png',
+  '애플 타르트': '사과.png',
+};
+
 function renderRestaurantExterior() {
   const exterior = RESTAURANT_EXTERIORS[Math.min(Math.max(state.day, 1), 4) - 1];
   $('#restaurantDayLabel').textContent = `DAY ${state.day} · ${exterior.name}`;
@@ -34,8 +41,73 @@ function showScreen(name) {
 }
 
 function renderPlayers() {
-  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card"><div class="move-buttons"><button data-move="${index}" data-dir="-1" ${index === 0 ? 'disabled' : ''} aria-label="앞 순서로">←</button><button data-move="${index}" data-dir="1" ${index === 2 ? 'disabled' : ''} aria-label="뒤 순서로">→</button></div><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
+  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
 }
+
+let draggedPlayerCard = null;
+let playerDragGhost = null;
+let playerDragPointerId = null;
+let playerDragOffset = { x: 0, y: 0 };
+
+function movePlayerDragGhost(event) {
+  if (!playerDragGhost) return;
+  playerDragGhost.style.left = `${event.clientX - playerDragOffset.x}px`;
+  playerDragGhost.style.top = `${event.clientY - playerDragOffset.y}px`;
+}
+
+function finishPlayerDrag() {
+  if (!draggedPlayerCard) return;
+  const cards = [...$('#playerSetup').querySelectorAll('.player-card')];
+  const reorderedPlayers = cards.map(card => state.players[Number(card.dataset.playerIndex)]);
+  state.players.splice(0, state.players.length, ...reorderedPlayers);
+  playerDragGhost?.remove();
+  draggedPlayerCard = null;
+  playerDragGhost = null;
+  playerDragPointerId = null;
+  document.body.classList.remove('is-dragging-player');
+  renderPlayers();
+}
+
+$('#playerSetup').addEventListener('pointerdown', event => {
+  if (event.button !== 0 || event.target.closest('input, button')) return;
+  const card = event.target.closest('.player-card');
+  if (!card) return;
+  event.preventDefault();
+  const rect = card.getBoundingClientRect();
+  draggedPlayerCard = card;
+  playerDragPointerId = event.pointerId;
+  playerDragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  playerDragGhost = card.cloneNode(true);
+  playerDragGhost.classList.add('player-drag-ghost');
+  playerDragGhost.style.width = `${rect.width}px`;
+  playerDragGhost.style.height = `${rect.height}px`;
+  card.classList.add('dragging');
+  card.setAttribute('aria-grabbed', 'true');
+  card.setPointerCapture(event.pointerId);
+  document.body.append(playerDragGhost);
+  document.body.classList.add('is-dragging-player');
+  movePlayerDragGhost(event);
+});
+
+$('#playerSetup').addEventListener('pointermove', event => {
+  if (!draggedPlayerCard || event.pointerId !== playerDragPointerId) return;
+  event.preventDefault();
+  movePlayerDragGhost(event);
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.player-card');
+  if (!target || target === draggedPlayerCard || target.parentElement !== $('#playerSetup')) return;
+  const targetRect = target.getBoundingClientRect();
+  const draggedRect = draggedPlayerCard.getBoundingClientRect();
+  const sameRow = Math.abs(targetRect.top - draggedRect.top) < targetRect.height / 2;
+  const insertBefore = sameRow ? event.clientX < targetRect.left + targetRect.width / 2 : event.clientY < targetRect.top + targetRect.height / 2;
+  $('#playerSetup').insertBefore(draggedPlayerCard, insertBefore ? target : target.nextSibling);
+});
+
+$('#playerSetup').addEventListener('pointerup', event => {
+  if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
+$('#playerSetup').addEventListener('pointercancel', event => {
+  if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
 
 function renderGame() {
   $('#dayLabel').textContent = state.day; $('#moneyLabel').textContent = `${state.money.toLocaleString()}G`; $('#gradeLabel').textContent = state.grade;
@@ -45,6 +117,21 @@ function renderGame() {
   $('#timeline').innerHTML = steps.map((item, index) => { const status = index < state.currentStep ? 'done' : index === state.currentStep ? 'active' : ''; return `<div class="timeline-item ${status}"><i class="dot"></i><div><small>${item.course.name} · ${TYPE_LABEL[item.type]}</small><b>${item.title}</b></div><em>${state.players[index % 3]}</em></div>` }).join('');
   if (state.finished) { renderResult(); showScreen('result'); return; }
   const current = getCurrent(state);
+  const kitchenBackground = current.type === 'cut' ? '주방_썰기.png' : '주방_끓이기.png';
+  const counterScene = $('.counter-scene');
+  counterScene.classList.add('has-kitchen-background');
+  counterScene.style.backgroundImage = `url("./src/assets/배경/${kitchenBackground}")`;
+  const cutIngredient = $('#cutIngredient');
+  const ingredientFile = current.type === 'cut' ? CUT_INGREDIENTS[current.course.name] : null;
+  cutIngredient.hidden = !ingredientFile;
+  $('#stationIcon').hidden = Boolean(ingredientFile);
+  if (ingredientFile) {
+    cutIngredient.src = `./src/assets/재료/${ingredientFile}`;
+    cutIngredient.alt = `${current.course.name} 자르기 재료`;
+  } else {
+    cutIngredient.removeAttribute('src');
+    cutIngredient.alt = '';
+  }
   $('#stationIcon').textContent = TYPE_ICON[current.type]; $('#stationLabel').textContent = `${current.course.name} / ${TYPE_LABEL[current.type]}`;
   $('#playerLabel').textContent = `${getPlayer(state)}의 차례`; $('#stepTitle').textContent = current.title; $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`; $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
 }
@@ -56,7 +143,6 @@ function renderResult() {
 
 document.addEventListener('click', (event) => {
   const go = event.target.closest('[data-go]'); if (go) { showScreen(go.dataset.go); return; }
-  const move = event.target.closest('[data-move]'); if (move) { const from = Number(move.dataset.move), to = from + Number(move.dataset.dir); [state.players[from], state.players[to]] = [state.players[to], state.players[from]]; renderPlayers(); }
 });
 $('#playerSetup').addEventListener('input', event => { if (event.target.matches('[data-player]')) state.players[Number(event.target.dataset.player)] = event.target.value.trim() || `셰프 ${Number(event.target.dataset.player) + 1}`; });
 $('#confirmTeamBtn').addEventListener('click', () => { renderGame(); showScreen('game'); });
