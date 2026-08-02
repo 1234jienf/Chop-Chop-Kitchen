@@ -3,67 +3,68 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#17130f" />
-    <title>Chop-Chop-Kitchen</title>
+    <meta name="theme-color" content="#15100c" />
+    <title>Chop-Chop Kitchen</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">3인 협동 쿠킹 데모</p>
-          <h1>Chop-Chop-Kitchen</h1>
+    <main id="app">
+      <section class="screen start-screen active" data-screen="start">
+        <div class="start-glow"></div>
+        <div class="hero-copy">
+          <p class="eyebrow">3인 협동 쿠킹 릴레이</p>
+          <h1>CHOP-CHOP<br><span>KITCHEN</span></h1>
+          <p class="hero-description">한 접시를 완성하기 위해<br>세 명의 셰프가 칼과 불을 이어받습니다.</p>
+          <button class="primary big" data-go="restaurant">게임 시작</button>
         </div>
-        <div class="header-stats" aria-label="식당 현황">
-          <span class="chip">DAY <strong id="dayLabel">1</strong></span>
-          <span class="chip">자금 <strong id="moneyLabel">0</strong>G</span>
-          <span class="chip">식당 <strong id="gradeLabel">1성</strong></span>
+        <div class="hero-dish" aria-hidden="true"><span>🍅</span><span>🥩</span><span>🍋</span></div>
+      </section>
+
+      <section class="screen restaurant-screen" data-screen="restaurant">
+        <div class="screen-heading light"><p class="eyebrow">DAY 1 · 우리의 첫 번째 식당</p><h2>작은 주방에서<br>큰 이야기가 시작됩니다</h2></div>
+        <button class="restaurant-card" data-go="lobby" aria-label="식당 안으로 들어가기">
+          <img src="./src/assets/restaurant.svg" alt="밤거리에 불이 켜진 Chop-Chop Kitchen 식당" />
+          <span class="enter-label">문을 눌러 입장하기 <b>→</b></span>
+        </button>
+        <button class="text-button back" data-go="start">← 돌아가기</button>
+      </section>
+
+      <section class="screen lobby-screen" data-screen="lobby">
+        <div class="lobby-copy"><p class="eyebrow">WELCOME TO THE KITCHEN</p><h2>영업 준비를<br>시작할까요?</h2><p>오늘의 셰프들이 모두 도착했습니다.<br>역할과 순서를 정하면 주방이 열립니다.</p></div>
+        <div class="lobby-door"><div class="door-sign">OPEN</div><div class="door-window">CHOP<br><b>CHOP</b></div></div>
+        <div class="bottom-actions"><button class="text-button" data-go="restaurant">← 밖으로</button><button class="primary" data-go="roles">셰프 준비하기 →</button></div>
+      </section>
+
+      <section class="screen roles-screen" data-screen="roles">
+        <div class="content-wrap narrow">
+          <div class="step-kicker">STEP 01 / TEAM SETUP</div>
+          <h2>오늘의 릴레이 순서를 정하세요</h2>
+          <p class="muted">각 셰프는 순서대로 자르기, 끓이기, 굽기 공정을 이어받습니다.</p>
+          <div id="playerSetup" class="player-setup"></div>
+          <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드 위 화살표를 눌러 릴레이 순서를 바꿀 수 있습니다.</p></div>
+          <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">이 순서로 시작하기 →</button></div>
         </div>
-      </header>
+      </section>
 
-      <main class="layout">
-        <section class="panel briefing">
-          <div class="section-heading"><span>01</span><h2>오늘의 주문</h2></div>
-          <div id="guestCard" class="guest-card"></div>
-          <label class="field">데모 메뉴
-            <select id="menuSelect"></select>
-          </label>
-          <div id="courseList" class="course-list"></div>
-        </section>
+      <section class="screen game-screen" data-screen="game">
+        <header class="game-header"><div><p class="eyebrow">CHOP-CHOP KITCHEN</p><strong>오늘의 영업</strong></div><div class="stats"><span>DAY <b id="dayLabel">1</b></span><span>자금 <b id="moneyLabel">1,200G</b></span><span>식당 <b id="gradeLabel">1성</b></span></div></header>
+        <div class="game-layout">
+          <aside class="game-sidebar">
+            <p class="section-label">TODAY'S GUEST</p><div id="guestCard" class="guest-card"></div>
+            <p class="section-label">COURSE</p><div id="courseList" class="course-list"></div>
+          </aside>
+          <section class="kitchen-stage">
+            <div class="stage-top"><div><p id="playerLabel" class="eyebrow"></p><h2 id="stepTitle"></h2><p id="stepHint" class="muted"></p></div><span id="stepCount" class="step-count"></span></div>
+            <div class="counter-scene"><span id="stationLabel" class="station-label"></span><div id="stationIcon" class="station-icon">🔪</div><div class="hands"><span>🫲</span><span>🫱</span></div></div>
+            <div class="meter"><div id="voiceBar"></div></div><p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
+            <div class="actions"><button id="micBtn" class="secondary">마이크 켜기</button><button id="missBtn" class="danger">실수 입력</button><button id="successBtn" class="primary">성공 입력</button></div>
+          </section>
+          <aside class="progress-sidebar"><p class="section-label">RELAY PROGRESS</p><div id="timeline" class="timeline"></div></aside>
+        </div>
+      </section>
 
-        <section class="panel kitchen">
-          <div class="section-heading"><span>02</span><h2>릴레이 키친</h2></div>
-          <div class="counter-scene" aria-label="1인칭 조리대 임시 화면">
-            <div class="station-icon" id="stationIcon">🔪</div>
-            <p class="station-label" id="stationLabel">조리 준비 중</p>
-            <div class="hands"><span>🫲</span><span>🫱</span></div>
-          </div>
-          <div class="now-playing">
-            <p id="playerLabel" class="player-label"></p>
-            <h3 id="stepTitle"></h3>
-            <p id="stepHint" class="muted"></p>
-          </div>
-          <div class="meter" aria-label="마이크 입력 세기"><div id="voiceBar"></div></div>
-          <p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
-          <div class="actions">
-            <button id="micBtn" class="secondary">마이크 켜기</button>
-            <button id="successBtn">성공 입력</button>
-            <button id="missBtn" class="danger">실수 입력</button>
-          </div>
-        </section>
-
-        <section class="panel progress-panel">
-          <div class="section-heading"><span>03</span><h2>오늘의 진행</h2></div>
-          <div id="timeline" class="timeline"></div>
-        </section>
-
-        <section class="panel result-panel">
-          <div class="section-heading"><span>04</span><h2>리뷰 & 정산</h2></div>
-          <div id="reviewPanel" class="review empty">12개 공정을 마치면 리뷰가 나타납니다.</div>
-          <button id="nextDayBtn" hidden>정산하고 다음 날</button>
-        </section>
-      </main>
-    </div>
+      <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
+    </main>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
