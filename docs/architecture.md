@@ -2,15 +2,37 @@
 
 ## 이번 데모에서 고정할 범위
 
-한 사이클은 `메뉴 확인 → 12공정 릴레이 → 고정 공식 채점 → 리뷰 → 정산`입니다. 레시피 해금, 상점, 온라인 멀티플레이는 데이터/화면 자리만 고려하고 5일 데모 범위에서는 제외합니다.
+한 사이클은 `메뉴 확인 → 코스 릴레이 → 고정 공식 채점 → 리뷰 → 정산`입니다. 레시피 해금, 상점, 온라인 멀티플레이는 데이터/화면 자리만 고려하고 5일 데모 범위에서는 제외합니다.
+
+## 레시피 스텝 스키마
+
+각 공정은 **재료 하나**를 기준으로 둡니다.
+
+```js
+{
+  category: 'appetizer',
+  name: 'Bruschetta',
+  nameKo: '브루스케타',
+  level: 'normal',
+  steps: [
+    { action: 'cutting', ingredients: ['tomatoes'], type: 'cut', title, targetPattern, hint },
+    { action: 'cutting', ingredients: ['baguette'], ... },
+    { action: 'roasting', ingredients: ['baguette'], ... },
+    { action: 'putting', ingredients: ['olive oil'], ... },
+  ],
+}
+```
+
+`action`: `cutting` | `boiling` | `roasting` | `putting` | `mixing` | `sprinkling`  
+`type`: 손님 보너스용 스테이션 (`cut` | `boil` | `grill` | `finish`) — `ACTION_STATION`으로 유도.
 
 ## 상태 흐름
 
 ```text
-PREPARE → COOKING(0..11) → REVIEW → SETTLEMENT → PREPARE
+PREPARE → COOKING(0..N) → REVIEW → SETTLEMENT → PREPARE
 ```
 
-현재 `state.js`는 작은 함수 기반 상태 머신입니다. 공정 제출은 정확도 `0..100`만 받으므로 음성 분류기와 버튼 대체 입력이 같은 게임 로직을 공유합니다.
+시작 추천 코스는 현재 **14공정**(브루스케타 4 + 클램 3 + 스테이크 4 + 애플 3). `state.js`는 작은 함수 기반 상태 머신입니다. 공정 제출은 정확도 `0..100`만 받으므로 음성 분류기와 버튼 대체 입력이 같은 게임 로직을 공유합니다.
 
 ## 팀 간 인터페이스
 

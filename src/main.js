@@ -1,16 +1,53 @@
-import { TYPE_ICON, TYPE_LABEL } from './data.js';
+import {
+  ACTION_LABEL,
+  INGREDIENT_LABEL,
+  TYPE_ICON,
+  TYPE_LABEL,
+  ingredientAsset,
+  primaryIngredient,
+} from './data.js';
 import { calculateResult, createGameState, getCurrent, getPlayer, getSteps, startNextDay, submitStep } from './state.js';
-import { sendWebmAudioToPythonAPI } from './api.js';
+import {
+  advanceKnife,
+  attachKnifeToTomato,
+  completeAfterVoice,
+  countTakInText,
+  createCutSession,
+  crossSectionFrom,
+  playCannedCut,
+  renderCutBoard,
+  resetCutSession,
+  setListening,
+  syncKnifeEl,
+  tryChopOnTak,
+} from './cutplay.js';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
 let micOn = false;
+let liveStream = null;
+let peakArmed = false;
+let lastFrameTs = 0;
+let speechRec = null;
+let speechWanted = false;
+let lastSpeechTakAt = 0;
 
-let mediaRecorder;
-let audioChunks = [];
 let audioContext = null;
 let analyser = null;
 let animationId = null;
+
+const cutSession = createCutSession({
+  onStatus: (msg) => { $('#micStatus').textContent = msg; },
+  onComplete: (accuracy) => {
+    stopLiveMic();
+    $('#micStatus').textContent = `절단 완료 · ${accuracy}점`;
+    $('.counter-scene')?.classList.remove('is-zoomed');
+    setTimeout(() => {
+      submitStep(state, accuracy);
+      renderGame();
+    }, 700);
+  },
+});
 
 const RESTAURANT_EXTERIORS = [
   { name: '푸드트럭', file: '식당외관_푸드트럭_투명.png', heading: '작은 주방에서<br>큰 이야기가 시작됩니다' },
@@ -19,12 +56,35 @@ const RESTAURANT_EXTERIORS = [
   { name: '고급 레스토랑', file: '식당외관_고급레스토랑_투명.png', heading: '마침내 꿈꾸던<br>최고의 식당이 되었습니다' },
 ];
 
-const CUT_INGREDIENTS = {
-  '브루스케타': '바게트.png',
-  '클램 차우더': '감자.png',
-  '스테이크 플레이트': '양파.png',
-  '애플 타르트': '사과.png',
-};
+function stationLabel(stepData) {
+  return ACTION_LABEL[stepData.action] || TYPE_LABEL[stepData.type] || stepData.action;
+}
+
+function kitchenBackgroundFor(stepData) {
+  return stepData.action === 'cutting' ? '주방_썰기.png' : '주방_끓이기.png';
+}
+
+const ASSET_VER = 'v13';
+
+function assetUrl(path) {
+  return `${path}?${ASSET_VER}`;
+}
+
+function isCuttingStep(stepData) {
+  return stepData?.action === 'cutting';
+}
+
+async function runCannedCut() {
+  const knife = $('#knifeHand');
+  const board = $('#cutBoard');
+  await playCannedCut(cutSession, { knifeEl: knife, boardEl: board });
+}
+
+async function finishVoiceCut() {
+  const knife = $('#knifeHand');
+  const board = $('#cutBoard');
+  await completeAfterVoice(cutSession, { knifeEl: knife, boardEl: board });
+}
 
 function renderRestaurantExterior() {
   const exterior = RESTAURANT_EXTERIORS[Math.min(Math.max(state.day, 1), 4) - 1];
@@ -110,30 +170,93 @@ $('#playerSetup').addEventListener('pointercancel', event => {
 });
 
 function renderGame() {
-  $('#dayLabel').textContent = state.day; $('#moneyLabel').textContent = `${state.money.toLocaleString()}G`; $('#gradeLabel').textContent = state.grade;
+  $('#dayLabel').textContent = state.day;
+  $('#moneyLabel').textContent = `${state.money.toLocaleString()}G`;
+  $('#gradeLabel').textContent = state.grade;
   $('#guestCard').innerHTML = `<span>오늘의 손님</span><strong>${state.guest.name}</strong><p>${state.guest.demand}</p>`;
-  $('#courseList').innerHTML = state.menu.courses.map((c, i) => `<div class="course-item"><span>0${i + 1} · ${c.category}</span><b>${c.name}</b></div>`).join('');
+  $('#courseList').innerHTML = state.menu.courses.map((c, i) =>
+    `<div class="course-item"><span>0${i + 1} · ${c.category}${c.level ? ` · ${c.level}` : ''}</span><b>${c.name}</b></div>`
+  ).join('');
+
   const steps = getSteps(state);
-  $('#timeline').innerHTML = steps.map((item, index) => { const status = index < state.currentStep ? 'done' : index === state.currentStep ? 'active' : ''; return `<div class="timeline-item ${status}"><i class="dot"></i><div><small>${item.course.name} · ${TYPE_LABEL[item.type]}</small><b>${item.title}</b></div><em>${state.players[index % 3]}</em></div>` }).join('');
-  if (state.finished) { renderResult(); showScreen('result'); return; }
+  $('#timeline').innerHTML = steps.map((item, index) => {
+    const status = index < state.currentStep ? 'done' : index === state.currentStep ? 'active' : '';
+    const ing = (item.ingredients || []).map((id) => INGREDIENT_LABEL[id] || id).join('·');
+    return `<div class="timeline-item ${status}"><i class="dot"></i><div><small>${item.course.name} · ${stationLabel(item)}${ing ? ` · ${ing}` : ''}</small><b>${item.title}</b></div><em>${state.players[index % 3]}</em></div>`;
+  }).join('');
+
+  if (state.finished) {
+    renderResult();
+    showScreen('result');
+    return;
+  }
+
   const current = getCurrent(state);
-  const kitchenBackground = current.type === 'cut' ? '주방_썰기.png' : '주방_끓이기.png';
   const counterScene = $('.counter-scene');
   counterScene.classList.add('has-kitchen-background');
-  counterScene.style.backgroundImage = `url("./src/assets/배경/${kitchenBackground}")`;
+  counterScene.classList.toggle('is-cutting', isCuttingStep(current));
+
+  const kitchenBg = $('#kitchenBg');
+  kitchenBg.src = assetUrl(`./src/assets/배경/${kitchenBackgroundFor(current)}`);
+  kitchenBg.alt = '';
+  counterScene.style.backgroundImage = '';
+
+  const ingredientId = primaryIngredient(current);
+  const ingredientFile = ingredientAsset(ingredientId);
+  const knife = $('#knifeHand');
+  const cutBoard = $('#cutBoard');
   const cutIngredient = $('#cutIngredient');
-  const ingredientFile = current.type === 'cut' ? CUT_INGREDIENTS[current.course.name] : null;
-  cutIngredient.hidden = !ingredientFile;
-  $('#stationIcon').hidden = Boolean(ingredientFile);
-  if (ingredientFile) {
-    cutIngredient.src = `./src/assets/재료/${ingredientFile}`;
-    cutIngredient.alt = `${current.course.name} 자르기 재료`;
+
+  if (isCuttingStep(current) && ingredientFile) {
+    cutIngredient.hidden = true;
+    $('#stationIcon').hidden = true;
+    knife.src = assetUrl('./src/assets/도구/오른손_칼.png');
+    resetCutSession(cutSession, {
+      ingredientFile,
+      crossSectionFile: crossSectionFrom(ingredientFile),
+      assetVer: ASSET_VER,
+      cutCount: 3,
+    });
+    // 칼이 cutBoard 안에 있으면 먼저 장면으로 되돌려 두기
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    renderCutBoard(cutBoard, cutSession);
+    attachKnifeToTomato(cutBoard, knife, 0);
+    cutSession.knifeX = 0;
+    syncKnifeEl(knife, cutSession);
+    counterScene.classList.add('is-zoomed');
+    peakArmed = true;
+    $('#micStatus').textContent = '마이크 켜기 → 「탁」하면 칼 자리에서 썰림 (점선=정답)';
+    $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · 점선이 정답, 어긋나도 그 자리 절단`;
   } else {
-    cutIngredient.removeAttribute('src');
-    cutIngredient.alt = '';
+    peakArmed = false;
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    cutBoard.hidden = true;
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    cutIngredient.hidden = !ingredientFile;
+    $('#stationIcon').hidden = Boolean(ingredientFile);
+    if (ingredientFile) {
+      cutIngredient.src = assetUrl(`./src/assets/재료/${ingredientFile}`);
+      cutIngredient.alt = INGREDIENT_LABEL[ingredientId] || ingredientId;
+    } else {
+      cutIngredient.removeAttribute('src');
+      cutIngredient.alt = '';
+      $('#stationIcon').textContent = TYPE_ICON[current.type];
+    }
+    $('#micStatus').textContent = '마이크를 켜거나 테스트 입력을 사용하세요.';
   }
-  $('#stationIcon').textContent = TYPE_ICON[current.type]; $('#stationLabel').textContent = `${current.course.name} / ${TYPE_LABEL[current.type]}`;
-  $('#playerLabel').textContent = `${getPlayer(state)}의 차례`; $('#stepTitle').textContent = current.title; $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`; $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
+
+  $('#stationIcon').textContent = TYPE_ICON[current.type];
+  $('#stationLabel').textContent = `${current.course.name} / ${stationLabel(current)}`;
+  $('#playerLabel').textContent = `${getPlayer(state)}의 차례`;
+  $('#stepTitle').textContent = current.title;
+  if (!(isCuttingStep(current) && ingredientFile)) {
+    $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
+  }
+  $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
 }
 
 function renderResult() {
@@ -146,138 +269,202 @@ document.addEventListener('click', (event) => {
 });
 $('#playerSetup').addEventListener('input', event => { if (event.target.matches('[data-player]')) state.players[Number(event.target.dataset.player)] = event.target.value.trim() || `셰프 ${Number(event.target.dataset.player) + 1}`; });
 $('#confirmTeamBtn').addEventListener('click', () => { renderGame(); showScreen('game'); });
-$('#successBtn').addEventListener('click', () => { submitStep(state, 90); renderGame(); });
-$('#missBtn',).addEventListener('click', () => { submitStep(state, 45); renderGame(); });
+$('#successBtn').addEventListener('click', async () => {
+  stopLiveMic();
+  if (isCuttingStep(getCurrent(state)) && !cutSession.finished && !cutSession.animating) {
+    await runCannedCut();
+    return;
+  }
+  submitStep(state, 90);
+  renderGame();
+});
+$('#missBtn').addEventListener('click', () => {
+  stopLiveMic();
+  submitStep(state, 45);
+  renderGame();
+});
 $('#nextDayBtn').addEventListener('click', () => { startNextDay(state); showScreen('restaurant'); });
 
-// 실시간 볼륨 시각화 시작 함수
-function startVolumeVisualizer(stream) {
+function stopTakSpeech() {
+  speechWanted = false;
+  if (!speechRec) return;
   try {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioContext.createMediaStreamSource(stream);
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
+    speechRec.onend = null;
+    speechRec.onresult = null;
+    speechRec.onerror = null;
+    speechRec.stop();
+  } catch (_) { /* already stopped */ }
+  speechRec = null;
+}
 
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+function startTakSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    $('#micStatus').textContent = '이 브라우저는 음성인식 미지원 · Chrome 권장';
+    return false;
+  }
 
-    const updateVolumeBar = () => {
-      if (!micOn) return;
-      analyser.getByteFrequencyData(dataArray);
-      
-      // 평균 볼륨 계산 (0 ~ 255)
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-      }
-      let average = sum / dataArray.length;
-      
-      // 퍼센트(0~100%)로 변환하여 #voiceBar 너비 조절
-      let volumePercent = Math.min(100, Math.floor((average / 128) * 100));
-      $('#voiceBar').style.width = `${volumePercent}%`;
+  stopTakSpeech();
+  speechWanted = true;
+  speechRec = new SR();
+  speechRec.lang = 'ko-KR';
+  speechRec.continuous = true;
+  speechRec.interimResults = true;
+  speechRec.maxAlternatives = 3;
 
-      animationId = requestAnimationFrame(updateVolumeBar);
-    };
+  speechRec.onresult = (event) => {
+    if (!peakArmed || !cutSession.listening || cutSession.finished || cutSession.animating) return;
 
-    updateVolumeBar();
-  } catch (e) {
-    console.error("볼륨 시각화 에러:", e);
+    let chunk = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      chunk += event.results[i][0]?.transcript || '';
+    }
+    const n = countTakInText(chunk);
+    if (!n) return;
+
+    const now = performance.now();
+    if (now - lastSpeechTakAt < 240) return;
+
+    // 한 이벤트에서 탁이 여러 번이면 첫 1회만 (연타는 다음 인식에서)
+    lastSpeechTakAt = now;
+    const result = tryChopOnTak(cutSession, {
+      knifeEl: $('#knifeHand'),
+      boardEl: $('#cutBoard'),
+    });
+    if (result === 'complete') finishVoiceCut();
+    else if (result === 'hit') $('#micStatus').textContent = `인식: 「탁」 · 정확!`;
+    else if (result === 'off') $('#micStatus').textContent = `인식: 「탁」 · 어긋난 컷!`;
+    else if (result === 'miss-timing') $('#micStatus').textContent = `「탁」 인식 · 점선 타이밍 빗김`;
+  };
+
+  speechRec.onerror = (event) => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+    if (event.error === 'not-allowed') {
+      $('#micStatus').textContent = '마이크/음성인식 권한을 허용해 주세요.';
+    }
+  };
+
+  speechRec.onend = () => {
+    if (!speechWanted || !micOn) return;
+    try {
+      speechRec.start();
+    } catch (_) { /* restart race */ }
+  };
+
+  try {
+    speechRec.start();
+    return true;
+  } catch (error) {
+    $('#micStatus').textContent = `음성인식 시작 실패: ${error.message}`;
+    return false;
   }
 }
 
-// 볼륨 시각화 중지 함수
-function stopVolumeVisualizer() {
+function stopLiveMic() {
+  micOn = false;
+  lastFrameTs = 0;
+  stopTakSpeech();
+  setListening(cutSession, false);
   if (animationId) cancelAnimationFrame(animationId);
-  if (audioContext && audioContext.state !== 'closed') {
-    audioContext.close();
-  }
+  animationId = null;
+  liveStream?.getTracks().forEach((t) => t.stop());
+  liveStream = null;
+  if (audioContext && audioContext.state !== 'closed') audioContext.close();
+  audioContext = null;
+  analyser = null;
   $('#voiceBar').style.width = '0%';
+  $('#micBtn').textContent = '마이크 켜기';
+  $('#micBtn').disabled = false;
 }
 
-// 🎙️ 마이크 켜기 버튼 클릭 시 5초 녹음, 볼륨 바 시각화 및 Whisper API 전송
+function tickLiveMic(ts) {
+  if (!micOn) return;
+
+  const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
+  lastFrameTs = ts;
+
+  if (analyser) {
+    const freq = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freq);
+    let sum = 0;
+    for (let i = 0; i < freq.length; i++) sum += freq[i];
+    $('#voiceBar').style.width = `${Math.min(100, Math.floor((sum / freq.length / 128) * 100))}%`;
+  }
+
+  const knife = $('#knifeHand');
+  const board = $('#cutBoard');
+
+  if (peakArmed && isCuttingStep(getCurrent(state)) && !cutSession.finished && !cutSession.animating) {
+    advanceKnife(cutSession, dt);
+    syncKnifeEl(knife, cutSession);
+
+    const guides = board?.querySelectorAll('.cut-guide');
+    if (guides?.length) {
+      let hot = -1;
+      let best = Infinity;
+      for (let i = 0; i < cutSession.marks.length; i++) {
+        if (cutSession.cutDone[i]) continue;
+        const d = cutSession.knifeX - cutSession.marks[i];
+        const inWin = d >= -0.1 && d <= 0.22;
+        const score = Math.abs(d);
+        if (inWin && score < best) {
+          best = score;
+          hot = i;
+        }
+      }
+      guides.forEach((el, i) => {
+        el.classList.toggle('done', cutSession.cutDone[i]);
+        el.classList.toggle('hot', i === hot);
+      });
+    }
+  }
+
+  animationId = requestAnimationFrame(tickLiveMic);
+}
+
 $('#micBtn').addEventListener('click', async () => {
   try {
-    if (micOn) return;
+    if (micOn) {
+      stopLiveMic();
+      $('#micStatus').textContent = peakArmed
+        ? '일시정지 · 다시 켜면 칼이 이어서 이동'
+        : '마이크를 켜거나 테스트 입력을 사용하세요.';
+      return;
+    }
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    const source = audioContext.createMediaStreamSource(liveStream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.4;
+    source.connect(analyser);
 
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = async () => {
-      micOn = false;
-      stopVolumeVisualizer();
-      $('#micBtn').textContent = '마이크 켜기';
-      $('#micStatus').textContent = '음성 분석 중...';
-
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-      try {
-        // 서버에 전송 및 결과 받기
-        const formData = new FormData();
-        formData.append("file", audioBlob, "recording.webm");
-
-        const response = await fetch("http://127.0.0.1:8000/transcribe", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) throw new Error(`서버 오류 발생: ${response.statusText}`);
-
-        const data = await response.json();
-        
-        if (data.success) {
-          console.log("=== [Whisper 음성 인식 결과] ===");
-          console.log("인식 텍스트:", data.text);
-          console.log("음량 통계:", data.volume_stats);
-
-          // 서버에서 계산된 음량 통계(RMS 등)를 기반으로 바를 최종적으로 채워줄 수도 있음
-          const finalRmsPercent = Math.min(100, Math.round(data.volume_stats.rms * 300)); 
-          $('#voiceBar').style.width = `${finalRmsPercent}%`;
-
-          $('#micStatus').textContent = `인식 성공: "${data.text}"`;
-        } else {
-          $('#micStatus').textContent = "음성 변환 실패";
-        }
-      } catch (error) {
-        console.error("API 통신 오류:", error);
-        $('#micStatus').textContent = `오류 발생: ${error.message}`;
-      } finally {
-        stream.getTracks().forEach(track => track.stop());
-        $('#micBtn').disabled = false;
-      }
-    };
-
-    // 녹음 및 실시간 볼륨 시각화 시작
-    mediaRecorder.start();
     micOn = true;
-    startVolumeVisualizer(stream);
+    lastFrameTs = 0;
+    lastSpeechTakAt = 0;
+    $('#micBtn').textContent = '마이크 끄기';
 
-    $('#micBtn').textContent = '녹음 중...';
-    $('#micBtn').disabled = true;
-    $('#micStatus').textContent = '🎙️ 5초 동안 음성을 입력해주세요... (볼륨 측정 중)';
-
-    // 5초 뒤 자동 종료
-    setTimeout(() => {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-      }
-    }, 5000);
-
+    if (peakArmed) {
+      setListening(cutSession, true);
+      const ok = startTakSpeech();
+      $('#micStatus').textContent = ok
+        ? '음성인식 ON · 점선에서 입으로 「탁」'
+        : '음성인식 불가 · Chrome에서 다시 시도';
+    } else {
+      $('#micStatus').textContent = '볼륨 측정 중 (이 공정은 버튼으로 진행)';
+    }
+    animationId = requestAnimationFrame(tickLiveMic);
   } catch (error) {
-    console.error("마이크 접근 실패:", error);
-    micStatus.textContent = `${error.message} HTTPS 또는 localhost에서 실행해 주세요.`;
-    micOn = false;
-    $('#micBtn').textContent = '마이크 켜기';
-    $('#micBtn').disabled = false;
-    stopVolumeVisualizer();
+    console.error('마이크 접근 실패:', error);
+    const msg = error?.message || String(error);
+    $('#micStatus').textContent = /NotAllowed|Permission|getUserMedia|secure/i.test(msg)
+      ? `${msg} · HTTPS 또는 localhost에서 실행해 주세요.`
+      : msg;
+    stopLiveMic();
   }
 });
 
 renderPlayers();
+showScreen('start');
