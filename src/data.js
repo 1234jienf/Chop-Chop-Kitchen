@@ -151,7 +151,7 @@ export const RECIPE_CATALOG = [
     steps: [
       step('cutting', ['potato'], { targetPattern: '탁·탁·탁', hint: '감자를 일정하게 썰어요.' }),
       step('cutting', ['clam'], { targetPattern: '콰직!', hint: '조개를 한 번에 손질.' }),
-      step('boiling', ['clam'], { title: '수프 끓이기', targetPattern: '보글보글', hint: '짧은 소리를 불규칙하게 반복하세요.' }),
+      step('boiling', ['clam', 'potato'], { title: '수프 끓이기', targetPattern: '보글보글', hint: '짧은 소리를 불규칙하게 반복하세요.' }),
     ],
   },
   {
