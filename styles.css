@@ -557,3 +557,8 @@ html,body{height:auto;overflow-y:auto}
 @keyframes latePulse{to{opacity:.58}}
 .counter-scene.is-finishing .emoji-hands,.counter-scene.is-finishing .station-icon{display:none!important}
 .counter-scene.is-finishing{background:#241911!important}
+.multiplayer-panel { margin: 18px 0; padding: 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: rgba(255,255,255,.05); }
+.multiplayer-panel > div { display: flex; gap: 8px; margin-top: 10px; }
+.multiplayer-panel input { min-width: 0; flex: 1; padding: 10px 12px; border-radius: 9px; border: 1px solid #c9b8a8; }
+.multiplayer-panel p { margin: 9px 0 0; }
+.actions.is-spectating { opacity: .55; }
