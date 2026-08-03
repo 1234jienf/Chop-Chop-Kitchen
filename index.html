@@ -60,6 +60,22 @@
               <img id="kitchenBg" class="kitchen-bg-img" alt="" />
               <div id="cutBoard" class="cut-board" hidden></div>
               <img id="cutIngredient" class="cut-ingredient" alt="" hidden>
+              <div id="roastStage" class="roast-stage" hidden>
+                <img id="fireImg" class="fire-img" alt="" draggable="false" />
+                <img id="panImg" class="pan-img" alt="프라이팬" draggable="false" />
+                <div id="roastSlices" class="roast-slices" aria-hidden="true"></div>
+              </div>
+              <div id="heatGauge" class="heat-gauge" hidden>
+                <span class="heat-cap">강</span>
+                <div class="heat-track">
+                  <div id="heatFill" class="heat-fill"></div>
+                  <i class="heat-zone high"></i>
+                  <i class="heat-zone mid"></i>
+                  <i class="heat-zone low"></i>
+                </div>
+                <span class="heat-cap">약</span>
+                <p id="heatLabel" class="heat-label">중불</p>
+              </div>
               <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=3" alt="" hidden>
               <div id="stationIcon" class="station-icon">🔪</div>
               <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
@@ -73,6 +89,6 @@
 
       <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
     </main>
-    <script type="module" src="./src/main.js?v=18"></script>
+    <script type="module" src="./src/main.js?v=22"></script>
   </body>
 </html>
