@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#15100c" />
     <title>Chop-Chop Kitchen</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Lexend:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css?v=43" />
   </head>
   <body>
     <main id="app">
@@ -47,48 +50,118 @@
       </section>
 
       <section class="screen game-screen" data-screen="game">
-        <header class="game-header"><div><p class="eyebrow">CHOP-CHOP KITCHEN</p><strong>오늘의 영업</strong></div><div class="stats"><span>DAY <b id="dayLabel">1</b></span><span>자금 <b id="moneyLabel">1,200G</b></span><span>식당 <b id="gradeLabel">1성</b></span></div></header>
-        <div class="game-layout">
-          <aside class="game-sidebar">
-            <p class="section-label">TODAY'S GUEST</p><div id="guestCard" class="guest-card"></div>
-            <p class="section-label">COURSE</p><div id="courseList" class="course-list"></div>
-          </aside>
-          <section class="kitchen-stage">
-            <div class="stage-top"><div><p id="playerLabel" class="eyebrow"></p><h2 id="stepTitle"></h2><p id="stepHint" class="muted"></p></div><span id="stepCount" class="step-count"></span></div>
-            <div class="counter-scene">
-              <span id="stationLabel" class="station-label"></span>
-              <img id="kitchenBg" class="kitchen-bg-img" alt="" />
-              <div id="cutBoard" class="cut-board" hidden></div>
-              <img id="cutIngredient" class="cut-ingredient" alt="" hidden>
-              <div id="roastStage" class="roast-stage" hidden>
-                <img id="fireImg" class="fire-img" alt="" draggable="false" />
-                <img id="panImg" class="pan-img" alt="프라이팬" draggable="false" />
-                <div id="roastSlices" class="roast-slices" aria-hidden="true"></div>
+        <div class="game-viewport">
+          <div class="game-stage" id="gameStage">
+            <header class="hud-top">
+              <div class="hud-brand">
+                <p class="eyebrow">CHOP-CHOP KITCHEN</p>
+                <strong>오늘의 영업</strong>
               </div>
-              <div id="heatGauge" class="heat-gauge" hidden>
-                <span class="heat-cap">강</span>
-                <div class="heat-track">
-                  <div id="heatFill" class="heat-fill"></div>
-                  <i class="heat-zone high"></i>
-                  <i class="heat-zone mid"></i>
-                  <i class="heat-zone low"></i>
+              <div class="hud-step">
+                <p id="playerLabel" class="eyebrow"></p>
+                <h2 id="stepTitle"></h2>
+                <p id="stepHint" class="hud-hint"></p>
+              </div>
+              <div class="stats">
+                <span>DAY <b id="dayLabel">1</b></span>
+                <span>자금 <b id="moneyLabel">1,200G</b></span>
+                <span>식당 <b id="gradeLabel">1성</b></span>
+                <span class="step-count" id="stepCount"></span>
+              </div>
+            </header>
+
+            <div class="stage-canvas">
+              <div class="counter-scene">
+                <span id="stationLabel" class="station-label"></span>
+                <img id="kitchenBg" class="kitchen-bg-img" alt="" />
+                <div id="cutStack" class="cut-stack" hidden>
+                  <img id="cuttingBoardImg" class="cutting-board-img" alt="도마" draggable="false" />
+                  <div id="cutBoard" class="cut-board"></div>
+                  <img id="passHand" class="pass-hand" src="./src/assets/도구/오른손.png?v=1" alt="" hidden aria-hidden="true">
                 </div>
-                <span class="heat-cap">약</span>
-                <p id="heatLabel" class="heat-label">중불</p>
+                <img id="cutIngredient" class="cut-ingredient" alt="" hidden>
+                <div id="roastStage" class="roast-stage" hidden>
+                  <img id="fireImg" class="fire-img" alt="" draggable="false" />
+                  <img id="panImg" class="pan-img" alt="프라이팬" draggable="false" />
+                  <div id="roastSlices" class="roast-slices" aria-hidden="true"></div>
+                </div>
+                <div id="boilStage" class="boil-stage boil-low" hidden>
+                  <img id="boilFireImg" class="fire-img" alt="" draggable="false" />
+                  <img id="potImg" class="pot-img" alt="냄비" draggable="false" />
+                  <div id="boilContents" class="boil-contents" aria-hidden="true"></div>
+                  <div class="boil-fx" aria-hidden="true">
+                    <div class="boil-steam"><i></i><i></i><i></i><i></i></div>
+                    <div class="boil-bubbles">
+                      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                    </div>
+                  </div>
+                </div>
+                <div id="blowFx" class="blow-fx" hidden aria-hidden="true">
+                  <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+                </div>
+                <div id="heatRhythm" class="heat-rhythm" hidden>
+                  <div class="heat-rhythm-head">
+                    <span id="heatTargetLabel">목표 중불</span>
+                    <span id="heatNowLabel">지금 중불</span>
+                  </div>
+                  <div class="heat-rhythm-track" aria-hidden="true">
+                    <span class="heat-tick" style="left:17%">약</span>
+                    <span class="heat-tick" style="left:50%">중</span>
+                    <span class="heat-tick" style="left:83%">강</span>
+                    <div id="heatTarget" class="heat-target"></div>
+                    <div id="heatCursor" class="heat-cursor"></div>
+                  </div>
+                  <div class="heat-match-meter"><div id="heatMatchFill"></div></div>
+                  <p id="heatLabel" class="heat-rhythm-hint">목표 구간에 불길을 맞춰 「후우~」</p>
+                </div>
+                <div id="heatGauge" class="heat-gauge" hidden>
+                  <span class="heat-cap">강</span>
+                  <div class="heat-track">
+                    <div id="heatFill" class="heat-fill"></div>
+                    <i class="heat-zone high"></i>
+                    <i class="heat-zone mid"></i>
+                    <i class="heat-zone low"></i>
+                  </div>
+                  <span class="heat-cap">약</span>
+                  <p class="heat-label">중불</p>
+                </div>
+                <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=3" alt="" hidden>
+                <div id="stationIcon" class="station-icon">🔪</div>
+                <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
               </div>
-              <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=3" alt="" hidden>
-              <div id="stationIcon" class="station-icon">🔪</div>
-              <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
+
+              <aside class="hud-drawer guest-drawer" id="guestDrawer">
+                <p class="section-label">TODAY'S GUEST</p>
+                <div id="guestCard" class="guest-card"></div>
+                <p class="section-label">COURSE</p>
+                <div id="courseList" class="course-list"></div>
+              </aside>
+              <aside class="hud-drawer progress-drawer" id="progressDrawer">
+                <p class="section-label">RELAY</p>
+                <div id="timeline" class="timeline"></div>
+              </aside>
             </div>
-            <div class="meter"><div id="voiceBar"></div></div><p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
-            <div class="actions"><button id="micBtn" class="secondary">마이크 켜기</button><button id="missBtn" class="danger">실수 입력</button><button id="successBtn" class="primary">성공 입력</button></div>
-          </section>
-          <aside class="progress-sidebar"><p class="section-label">RELAY PROGRESS</p><div id="timeline" class="timeline"></div></aside>
+
+            <footer class="hud-bottom">
+              <div class="meter"><div id="voiceBar"></div></div>
+              <p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
+              <div class="actions">
+                <button id="micBtn" class="secondary">마이크 켜기</button>
+                <button id="missBtn" class="danger">실수 입력</button>
+                <button id="successBtn" class="primary">성공 입력</button>
+              </div>
+              <div id="fireTestBtns" class="fire-test-btns" hidden>
+                <button type="button" data-fire-test="low">약불</button>
+                <button type="button" data-fire-test="mid">중불</button>
+                <button type="button" data-fire-test="high">강불</button>
+              </div>
+            </footer>
+          </div>
         </div>
       </section>
 
       <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
     </main>
-    <script type="module" src="./src/main.js?v=22"></script>
+    <script type="module" src="./src/main.js?v=43"></script>
   </body>
 </html>

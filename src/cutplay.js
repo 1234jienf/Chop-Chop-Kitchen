@@ -9,7 +9,23 @@ const HIT_WINDOW = 0.1;
 const ASR_GRACE = 0.12;
 const KNIFE_SPEED = 0.085;
 const PEAK_COOLDOWN_MS = 260;
-const TOMATO_SIZE = 220;
+const CUT_SIZE_DEFAULT = 160;
+/** 재료별 썰기 크기·비율. 바게트는 가로로 길게 (썰기 전후 위치 일치) */
+const CUT_LAYOUT_BY_FILE = {
+  '바게트.png': { w: 300, h: 200 }, // 원본 1536×1024
+  '아스파라거스.png': { w: 280, h: 168 }, // 가로로 눕힌 뒤
+};
+
+function cutLayoutFor(session) {
+  const custom = CUT_LAYOUT_BY_FILE[session?.ingredientFile];
+  if (custom) return { ...custom };
+  const s = CUT_SIZE_DEFAULT;
+  return { w: s, h: s };
+}
+
+function cutSizeFor(session) {
+  return cutLayoutFor(session).w;
+}
 const MIN_CUT_GAP = 0.055;
 
 function buildCutMarks(count = 3) {
@@ -41,6 +57,8 @@ export function createCutSession({ onStatus, onComplete }) {
 
 export function crossSectionFrom(ingredientFile) {
   if (!ingredientFile) return null;
+  // 조개는 단면 대신 다짐 에셋
+  if (ingredientFile === '조개.png') return '조개_다짐.png';
   return ingredientFile.replace(/\.png$/i, '_단면.png');
 }
 
@@ -198,6 +216,19 @@ function playChopAnim(knifeEl) {
   knifeEl.classList.remove('chopping');
   void knifeEl.offsetWidth;
   knifeEl.classList.add('chopping');
+
+  const arena = knifeEl.closest('.cut-arena') || knifeEl.parentElement;
+  if (arena) {
+    arena.querySelectorAll('.chop-fx').forEach((el) => el.remove());
+    const fx = document.createElement('div');
+    fx.className = 'chop-fx';
+    fx.style.left = knifeEl.style.getPropertyValue('--knife-t') || '50%';
+    arena.appendChild(fx);
+    const clear = () => fx.remove();
+    fx.addEventListener('animationend', clear, { once: true });
+    setTimeout(clear, 450);
+  }
+
   knifeEl.addEventListener('animationend', () => knifeEl.classList.remove('chopping'), { once: true });
 }
 
@@ -214,28 +245,31 @@ function guidesHtml(session) {
 function buildSliceParts(session, { spreadScale = 6, gapPx = 12, fresh = false } = {}) {
   const ver = session.assetVer || '1';
   const src = `./src/assets/재료/${session.ingredientFile}?${ver}`;
-  const size = TOMATO_SIZE;
+  const { w: boxW, h: boxH } = cutLayoutFor(session);
   const cuts = [...session.actualCuts].sort((a, b) => a - b);
   const points = [0, ...cuts, 1];
   let cursor = 0;
   const parts = [];
   const lastCut = cuts.length ? cuts[cuts.length - 1] : null;
+  // 바게트 등 가로형은 틈을 좁혀 썰기 전 위치와 덜 어긋나게
+  const isWide = boxW > boxH * 1.15;
+  const gap = isWide ? Math.min(gapPx, 6) : gapPx;
+  const spreadMul = isWide ? 0.35 : 1;
 
   for (let i = 0; i < points.length - 1; i++) {
     const start = points[i];
     const end = points[i + 1];
-    const w = Math.max(2, size * (end - start));
-    const spread = (i - (points.length - 2) / 2) * spreadScale;
-    // 생긴 틈 양쪽 조각에 팝 애니메이션
+    const w = Math.max(2, boxW * (end - start));
+    const spread = (i - (points.length - 2) / 2) * spreadScale * spreadMul;
     const isFresh = fresh && lastCut != null && (Math.abs(end - lastCut) < 0.001 || Math.abs(start - lastCut) < 0.001);
     parts.push(`
-      <div class="burst-clip${isFresh ? ' is-fresh' : ''}" style="left:${cursor}px;width:${w}px;height:${size}px;--spread:${spread}px;--delay:0ms">
-        <img src="${src}" alt="" style="width:${size}px;height:${size}px;margin-left:${-start * size}px" draggable="false" />
+      <div class="burst-clip${isFresh ? ' is-fresh' : ''}" style="left:${cursor}px;width:${w}px;height:${boxH}px;--spread:${spread}px;--delay:0ms">
+        <img src="${src}" alt="" style="width:${boxW}px;height:${boxH}px;margin-left:${-start * boxW}px;object-fit:fill" draggable="false" />
       </div>
     `);
-    cursor += w + (i < points.length - 2 ? gapPx : 0);
+    cursor += w + (i < points.length - 2 ? gap : 0);
   }
-  return { parts: parts.join(''), width: cursor, size };
+  return { parts: parts.join(''), width: cursor, size: boxH, boxW, boxH };
 }
 
 /**
@@ -268,6 +302,12 @@ export function tryChopOnTak(session, { knifeEl, boardEl } = {}) {
   }
 
   playChopAnim(knifeEl);
+  const hitTarget = boardEl?.querySelector('.whole-tomato, .live-slices');
+  if (hitTarget) {
+    hitTarget.classList.remove('is-hit');
+    void hitTarget.offsetWidth;
+    hitTarget.classList.add('is-hit');
+  }
 
   const n = session.actualCuts.length;
   const total = needCuts(session);
@@ -357,12 +397,13 @@ export function renderLiveTomato(root, session, { justCut = false } = {}) {
 
   if (!session.actualCuts.length) {
     const whole = `./src/assets/재료/${session.ingredientFile}?${ver}`;
+    const { w: boxW, h: boxH } = cutLayoutFor(session);
     root.innerHTML = `
-      <div class="cut-stage cut-stage--ready">
+      <div class="cut-stage cut-stage--ready" style="--cut-w:${boxW}px;--cut-h:${boxH}px;--cut-size:${boxW}px">
         <div class="cut-arena">
-          <div class="whole-tomato">
-            <img class="whole-tomato-img" src="${whole}" alt="토마토" draggable="false" />
-            <div class="cut-guides">${guides}</div>
+          <div class="whole-tomato" style="--cut-w:${boxW}px;--cut-h:${boxH}px;--cut-size:${boxW}px">
+            <img class="whole-tomato-img" src="${whole}" alt="" draggable="false" />
+            <div class="cut-guides cut-guides--flush">${guides}</div>
           </div>
         </div>
         <p class="cut-hint">점선=정답 · 밖에서 「탁」해도 <b>그 자리</b>에서 썰림</p>
@@ -371,17 +412,17 @@ export function renderLiveTomato(root, session, { justCut = false } = {}) {
     return;
   }
 
-  const { parts, width, size } = buildSliceParts(session, {
+  const { parts, width, boxW, boxH } = buildSliceParts(session, {
     spreadScale: 10,
     gapPx: 14,
     fresh: justCut,
   });
   root.innerHTML = `
-    <div class="cut-stage cut-stage--ready">
-      <div class="cut-arena cut-arena--sliced" style="width:${Math.max(TOMATO_SIZE, width)}px;height:${size}px">
-        <div class="live-slices" style="width:${width}px;height:${size}px;position:relative;margin:0 auto">
+    <div class="cut-stage cut-stage--ready" style="--cut-w:${boxW}px;--cut-h:${boxH}px;--cut-size:${boxW}px">
+      <div class="cut-arena cut-arena--sliced" style="width:${Math.max(boxW, width)}px;height:${boxH}px">
+        <div class="live-slices" style="width:${width}px;height:${boxH}px;position:relative;margin:0 auto">
           ${parts}
-          <div class="cut-guides cut-guides--over">${guides}</div>
+          <div class="cut-guides cut-guides--over cut-guides--flush">${guides}</div>
         </div>
       </div>
       <p class="cut-hint">탁할 때마다 <b>바로</b> 갈라짐 · ${session.actualCuts.length}/${needCuts(session)}</p>
@@ -407,9 +448,9 @@ export function renderSplitBoard(root, session) {
   if (!session.actualCuts.length) {
     session.actualCuts = [...session.marks];
   }
-  const { parts, width, size } = buildSliceParts(session, { spreadScale: 8, gapPx: 6 });
+  const { parts, width, boxW, boxH } = buildSliceParts(session, { spreadScale: 8, gapPx: 6 });
   root.innerHTML = `
-    <div class="cut-stage cut-stage--burst" style="width:${width}px;height:${size}px">
+    <div class="cut-stage cut-stage--burst" style="width:${width}px;height:${boxH}px;--cut-w:${boxW}px;--cut-h:${boxH}px">
       ${parts}
     </div>
   `;
