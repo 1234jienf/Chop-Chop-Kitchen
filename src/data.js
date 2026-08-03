@@ -126,6 +126,8 @@ export function step(action, ingredients, meta) {
     targetPattern: meta.targetPattern,
     hint: meta.hint,
     targetPitch: meta.targetPitch,
+    targetPitches: meta.targetPitches,
+    targetNotes: meta.targetNotes,
     toleranceCents: meta.toleranceCents,
     holdSeconds: meta.holdSeconds,
     reachSeconds: meta.reachSeconds,
@@ -158,7 +160,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['tomatoes'], { title: '토마토 썰기', targetPattern: '탁·탁·탁', hint: '균일한 간격으로 리듬을 내세요.' }),
       step('cutting', ['baguette'], { title: '바게트 썰기', targetPattern: '콰직!', hint: '강한 한 번의 피크로 썰어요.' }),
       step('roasting', ['baguette'], { title: '바게트 토스트', targetPattern: '치이이익', hint: '일정한 지속음을 유지하세요.' }),
-      step('putting', ['basil', 'olive oil'], { title: '바질·올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음정을 3초간 유지하세요.' }),
+      step('putting', ['basil', 'olive oil'], { title: '바질·올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -167,7 +169,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['tomatoes'], { title: '토마토 썰기', targetPattern: '탁·탁·탁', hint: '일정하게 썰어요.' }),
       step('cutting', ['mozzarella'], { title: '모짜렐라 썰기', targetPattern: '탁·탁·탁', hint: '일정하게 썰어요.' }),
       step('mixing', ['basil'], { title: '바질과 함께 섞기', targetPattern: '보글보글', hint: '재료를 고르게 섞으세요.' }),
-      step('putting', ['sauce'], { title: '발사믹 드레싱 붓기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음정을 유지하세요.' }),
+      step('putting', ['sauce'], { title: '발사믹 드레싱 붓기', targetPattern: '솔(G3)', targetPitch: 196, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -182,7 +184,7 @@ export const RECIPE_CATALOG = [
       step('roasting', ['baguette'], { title: '빵칩 굽기', targetPattern: '치이이익', hint: '지속음으로 굽기.' }),
       step('boiling', ['sauce'], { title: '발사믹 리덕션 만들기', targetPattern: '후~~~~', hint: '길게 불어 화력을 낮추세요.' }),
       step('mixing', ['tomatoes'], { title: '재료 섞기', targetPattern: '보글보글', hint: '짧게 섞는 소리.' }),
-      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음정을 3초간 유지하세요.' }),
+      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '미(E3)', targetPitch: 164.81, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -227,7 +229,7 @@ export const RECIPE_CATALOG = [
       step('roasting', ['crouton'], { title: '크루통 굽기', targetPattern: '치이이익', hint: '바삭하게 구우세요.' }),
       step('boiling', ['mushroom'], { title: '크림수프 끓이기', targetPattern: '보글보글', hint: '부드럽게 끓이세요.' }),
       step('mixing', ['mushroom'], { title: '크림 섞기', targetPattern: '후루룩', hint: '부드럽게 섞으세요.' }),
-      step('sprinkling', ['parsley'], { title: '파슬리 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'powder', sprinklePourAsset: '파슬리', hint: '목표 음정을 유지하세요.' }),
+      step('sprinkling', ['parsley'], { title: '파슬리 뿌리기', targetPattern: '도(C4)', targetPitch: 261.63, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'powder', sprinklePourAsset: '파슬리', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -266,7 +268,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['mushroom'], { title: '양송이 버섯 다지기', targetPattern: '찹찹찹찹', hint: '잘게 다지세요.' }),
       step('roasting', ['pastry'], { title: '페이스트리 굽기', targetPattern: '치이이익', hint: '바삭하게 구우세요.' }),
       step('boiling', ['sauce'], { title: '소스 졸이기', targetPattern: '후~~~~', hint: '천천히 졸이세요.' }),
-      step('sprinkling', ['basil'], { title: '허브 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'powder', sprinklePourAsset: '허브', hint: '목표 음정을 유지하세요.' }),
+      step('sprinkling', ['basil'], { title: '허브 뿌리기', targetPattern: '레(D4)', targetPitch: 293.66, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'powder', sprinklePourAsset: '허브', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -287,7 +289,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['vanilla'], { title: '바닐라빈 껍질 자르기', targetPattern: '스으윽~', hint: '얇게 갈라 주세요.' }),
       step('roasting', ['sugar'], { title: '커스터드 중탕 굽기', targetPattern: '스으-', hint: '약한 열을 유지하세요.' }),
       step('mixing', ['flour'], { title: '달걀과 생크림 섞기', targetPattern: '후루룩', hint: '부드럽게 섞으세요.' }),
-      step('sprinkling', ['sugar'], { title: '표면에 설탕 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'powder', sprinklePourAsset: '설탕', hint: '목표 음정을 유지하세요.' }),
+      step('sprinkling', ['sugar'], { title: '표면에 설탕 뿌리기', targetPattern: '미(E4)', targetPitch: 329.63, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'powder', sprinklePourAsset: '설탕', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -306,7 +308,7 @@ export const RECIPE_CATALOG = [
       step('roasting', ['chocolate'], { title: '라바 케이크 오븐 굽기', targetPattern: '치이이익', hint: '가운데는 촉촉하게 구우세요.' }),
       step('boiling', ['butter', 'chocolate'], { title: '버터와 초콜릿 중탕 끓이기', targetPattern: '보글보글', hint: '천천히 녹이세요.' }),
       step('mixing', ['flour'], { title: '달걀과 밀가루 반죽 섞기', targetPattern: '후루룩', hint: '덩어리 없이 섞으세요.' }),
-      step('sprinkling', ['sugar'], { title: '슈가파우더 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 3, sprinklePourKind: 'powder', sprinklePourAsset: '슈가파우더', hint: '목표 음정을 유지하세요.' }),
+      step('sprinkling', ['sugar'], { title: '슈가파우더 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'powder', sprinklePourAsset: '슈가파우더', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
 ];

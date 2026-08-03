@@ -5,8 +5,8 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js';
-import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js';
+} from './data.js?v=29';
+import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js?v=29';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -21,7 +21,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js';
+} from './cutplay.js?v=29';
 import {
   bandLabel,
   createRoastHeat,
@@ -29,7 +29,7 @@ import {
   resetRoastHeat,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js';
+} from './roastheat.js?v=29';
 import {
   createFinishSession,
   detectPitch,
@@ -41,7 +41,7 @@ import {
   reachTimeLeft,
   stopFinishSession,
   tickFinish,
-} from './sprinklepourplay.js';
+} from './sprinklepourplay.js?v=29';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -154,33 +154,38 @@ function renderFinishStage(stepData) {
   finishSubmitted = false;
   syncFinishUi();
   $('#micStatus').textContent = '마이크를 켜고 목표 음정까지 소리를 올려보세요.';
-  $('#stepHint').textContent = '10초 안에 주황색 목표 음에 도달한 뒤 3초간 유지하세요.';
+  $('#stepHint').textContent = `${finishSession.targetNotes.join(' → ')} · 각 음을 10초 안에 찾아 2초간 유지하세요.`;
 }
 
 function syncFinishUi() {
   const percent = holdPercent(finishSession);
   const inTune = finishSession.pitchHz && Math.abs(finishSession.cents) <= finishSession.toleranceCents;
+  const showPouring = finishSession.isPouring;
   $('#pitchNeedle').style.bottom = `${pitchPercent(finishSession)}%`;
   $('#holdFill').style.width = `${percent}%`;
   $('#holdLabel').textContent = `${finishSession.hold.toFixed(1)} / ${finishSession.holdSeconds.toFixed(1)}초`;
   const timeLeft = reachTimeLeft(finishSession);
   const timer = $('#reachTimer');
+  const targetStep = finishSession.targetPitches.length > 1
+    ? `${finishSession.targetIndex + 1}/${finishSession.targetPitches.length}`
+    : '목표';
+  const targetNote = finishSession.targetNotes[finishSession.targetIndex] || `${Math.round(finishSession.targetHz)}Hz`;
   if (finishSession.reachedAt != null) {
-    timer.textContent = `도달 ${finishSession.reachedAt.toFixed(1)}초 · 예상 ${finishAccuracy(finishSession)}점`;
+    timer.textContent = `${targetStep} ${targetNote} · 도달 ${finishSession.reachedAt.toFixed(1)}초 · 예상 ${finishAccuracy(finishSession)}점`;
     timer.classList.remove('is-late');
   } else if (timeLeft > 0) {
-    timer.textContent = `목표 음 도달까지 ${timeLeft.toFixed(1)}초`;
+    timer.textContent = `${targetStep} ${targetNote} · 도달까지 ${timeLeft.toFixed(1)}초`;
     timer.classList.remove('is-late');
   } else {
-    timer.textContent = '제한시간 초과 · 목표 음을 찾아 완료하세요';
+    timer.textContent = `${targetStep} ${targetNote} · 제한시간 초과`;
     timer.classList.add('is-late');
   }
-  $('#finishStage').classList.toggle('is-pouring', Boolean(inTune));
-  $('#finishTool').src = inTune ? $('#finishTool').dataset.pour : $('#finishTool').dataset.idle;
+  $('#finishStage').classList.toggle('is-pouring', Boolean(showPouring));
+  $('#finishTool').src = showPouring ? $('#finishTool').dataset.pour : $('#finishTool').dataset.idle;
   $('#pitchLabel').textContent = !finishSession.pitchHz
-    ? '소리를 내보세요'
-    : inTune ? '좋아요! 유지하세요'
-      : finishSession.cents < 0 ? '조금 더 높게!' : '조금 더 낮게!';
+    ? `${targetStep} ${targetNote}`
+    : inTune ? `${targetNote} 좋아요!`
+      : finishSession.cents < 0 ? `${targetNote} · 더 높게!` : `${targetNote} · 더 낮게!`;
 }
 
 async function playFinishTestEffect(accuracy) {
@@ -727,7 +732,13 @@ function tickLiveMic(ts) {
       : { frequency: 0, confidence: 0 };
     tickFinish(finishSession, pitch, dt);
     syncFinishUi();
-    if (micOn) $('#micStatus').textContent = $('#pitchLabel').textContent;
+    if (micOn) {
+      $('#micStatus').textContent = finishSession.rawPitchHz
+        ? `감지 ${Math.round(finishSession.rawPitchHz)}Hz · ${$('#pitchLabel').textContent}`
+        : volumePercent >= 2
+          ? `마이크 입력 ${volumePercent}% 감지 · 음정을 찾는 중, 「아—」 하고 길게 내보세요.`
+          : '마이크 입력 없음 · 권한과 입력 장치를 확인해 주세요.';
+    }
     if (finishSession.complete && !finishSubmitted) {
       finishSubmitted = true;
       $('#micStatus').textContent = '완벽한 마무리!';
@@ -795,7 +806,13 @@ $('#micBtn').addEventListener('click', async () => {
       return;
     }
 
-    liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    liveStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    });
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     if (audioContext.state === 'suspended') await audioContext.resume();
     const source = audioContext.createMediaStreamSource(liveStream);
