@@ -525,3 +525,35 @@ html,body{height:auto;overflow-y:auto}
 .counter-scene.is-roasting .emoji-hands,
 .counter-scene.is-roasting .station-icon{display:none}
 .counter-scene.is-roasting .cut-ingredient{display:none!important}
+
+/* Finish: first-person garnish blown/poured from the player toward the dish */
+.finish-stage{position:absolute;inset:0;z-index:5;overflow:hidden;pointer-events:none}
+.finish-stage[hidden]{display:none!important}
+.finish-dish{position:absolute;left:50%;top:57%;width:58%;height:68%;object-fit:contain;transform:translate(-50%,-50%);filter:drop-shadow(0 14px 12px #0009)}
+.finish-tool{position:absolute;z-index:7;left:27%;bottom:-24%;width:34%;height:58%;object-fit:contain;transform:translateX(-50%) rotate(-8deg);transform-origin:50% 90%;filter:drop-shadow(0 10px 8px #0009);transition:left .22s ease,transform .16s ease}
+.finish-stage.is-pouring .finish-tool{left:50%;top:-7%;bottom:auto;width:31%;height:48%;transform:translateX(-50%) rotate(-15deg)}
+.finish-stream{position:absolute;z-index:6;left:47%;bottom:16%;width:19%;height:42%;transform:translateX(-50%);opacity:0;transition:opacity .12s}
+.finish-stage.is-pouring .finish-stream{opacity:1}
+.finish-stage.is-test-miss .finish-stream{opacity:.42}
+.finish-stage.is-test-miss .finish-stream i{animation-duration:1.05s}
+.finish-stream i{position:absolute;left:calc(50% + var(--drift));bottom:calc(var(--i) * 2.4%);width:5px;height:9px;border-radius:50%;background:#8db653;box-shadow:0 0 4px #d8ef88;animation:finishFly .65s linear infinite;animation-delay:calc(var(--i) * -38ms)}
+.finish-stream[data-kind="liquid"] i{width:7px;height:18px;border-radius:70% 30% 60% 40%;background:#8b3c20;box-shadow:0 0 5px #d2773a99}
+@keyframes finishFly{0%{transform:translate(0,28px) scale(1.15);opacity:0}20%{opacity:1}100%{transform:translate(calc(var(--drift) * .45),-105px) scale(.5);opacity:.15}}
+.finish-breath{position:absolute;z-index:5;left:47%;bottom:8%;width:24%;height:26%;transform:translateX(-50%);opacity:0}
+.is-pouring .finish-breath{opacity:.65}
+.finish-breath i{position:absolute;left:50%;bottom:0;width:60%;height:35%;border-top:2px solid #e9f4e077;border-radius:50%;animation:breathUp .9s ease-out infinite}
+.finish-breath i:nth-child(2){animation-delay:.3s}.finish-breath i:nth-child(3){animation-delay:.6s}
+@keyframes breathUp{from{transform:translate(-50%,0) scale(.5);opacity:.8}to{transform:translate(-50%,-90px) scale(1.4);opacity:0}}
+.pitch-gauge{position:absolute;right:4%;top:9%;bottom:13%;display:flex;flex-direction:column;align-items:center;gap:4px;color:#ead5b8;font-size:.62rem;font-weight:900}
+.pitch-track{position:relative;width:24px;flex:1;border:2px solid #8a6a48;border-radius:99px;background:#18100cdd;box-shadow:inset 0 0 8px #000}
+.pitch-target{position:absolute;left:2px;right:2px;bottom:42%;height:16%;border-radius:7px;background:#ed8b35aa;box-shadow:0 0 12px #ff8a35}
+.pitch-needle{position:absolute;left:-7px;width:34px;height:4px;border-radius:4px;background:#fff6cf;box-shadow:0 0 7px #fff;transition:bottom .08s linear}
+.pitch-gauge strong{width:88px;color:#f4bb72;text-align:center;font-size:.62rem}
+.hold-gauge{position:absolute;left:18%;right:26%;bottom:5%;height:18px;overflow:hidden;border:2px solid #8a6a48;border-radius:99px;background:#17100ddd}
+.hold-gauge div{height:100%;width:0;background:linear-gradient(90deg,#e06f32,#ffd166);transition:width .08s linear}
+.hold-gauge b{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:.65rem;text-shadow:0 1px 2px #000}
+.reach-timer{position:absolute;left:18%;right:26%;bottom:10%;margin:0;color:#ffe0a8;font-size:.7rem;font-weight:900;text-align:center;text-shadow:0 2px 3px #000}
+.reach-timer.is-late{color:#ff776c;animation:latePulse .75s ease-in-out infinite alternate}
+@keyframes latePulse{to{opacity:.58}}
+.counter-scene.is-finishing .emoji-hands,.counter-scene.is-finishing .station-icon{display:none!important}
+.counter-scene.is-finishing{background:#241911!important}

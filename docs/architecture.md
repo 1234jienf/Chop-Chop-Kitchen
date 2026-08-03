@@ -24,7 +24,7 @@
 ```
 
 `action`: `cutting` | `boiling` | `roasting` | `putting` | `mixing` | `sprinkling`  
-`type`: 손님 보너스용 스테이션 (`cut` | `boil` | `grill` | `finish`) — `ACTION_STATION`으로 유도.
+`type`: 손님 보너스용 스테이션 (`cut` | `boil` | `grill` | `mix` | `sprinklePour`) — `ACTION_STATION`으로 유도. 섞기는 `mix`, 뿌리기·붓기는 `sprinklePour`를 사용합니다.
 
 ## 상태 흐름
 

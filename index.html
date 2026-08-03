@@ -76,6 +76,23 @@
                 <span class="heat-cap">약</span>
                 <p id="heatLabel" class="heat-label">중불</p>
               </div>
+              <div id="finishStage" class="finish-stage" hidden>
+                <img id="finishDish" class="finish-dish" alt="완성 직전 요리" draggable="false" />
+                <div id="finishStream" class="finish-stream" aria-hidden="true"></div>
+                <img id="finishTool" class="finish-tool" alt="마무리 재료" draggable="false" />
+                <div class="finish-breath" aria-hidden="true"><i></i><i></i><i></i></div>
+                <div class="pitch-gauge" aria-label="음정 게이지">
+                  <span>높음</span>
+                  <div class="pitch-track">
+                    <i class="pitch-target"></i>
+                    <b id="pitchNeedle" class="pitch-needle"></b>
+                  </div>
+                  <span>낮음</span>
+                  <strong id="pitchLabel">소리를 내보세요</strong>
+                </div>
+                <div class="hold-gauge"><div id="holdFill"></div><b id="holdLabel">0.0 / 3.0초</b></div>
+                <p id="reachTimer" class="reach-timer">목표 음 도달까지 10.0초</p>
+              </div>
               <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=3" alt="" hidden>
               <div id="stationIcon" class="station-icon">🔪</div>
               <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
@@ -89,6 +106,6 @@
 
       <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
     </main>
-    <script type="module" src="./src/main.js?v=22"></script>
+    <script type="module" src="./src/main.js?v=23"></script>
   </body>
 </html>

@@ -30,6 +30,18 @@ import {
   stopRoastHeat,
   tickRoastHeat,
 } from './roastheat.js';
+import {
+  createFinishSession,
+  detectPitch,
+  finishAccuracy,
+  holdPercent,
+  isFinishStep,
+  pitchPercent,
+  resetFinishSession,
+  reachTimeLeft,
+  stopFinishSession,
+  tickFinish,
+} from './sprinklepourplay.js';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -37,6 +49,7 @@ let micOn = false;
 let liveStream = null;
 let peakArmed = false;
 let roastArmed = false;
+let finishArmed = false;
 let lastFrameTs = 0;
 let speechRec = null;
 let speechWanted = false;
@@ -44,6 +57,8 @@ let lastSpeechTakAt = 0;
 let wasAboveBurst = false;
 let speechKickTimer = null;
 const roastHeat = createRoastHeat();
+const finishSession = createFinishSession();
+let finishSubmitted = false;
 let lastFireBand = 'mid';
 
 let audioContext = null;
@@ -79,6 +94,7 @@ function stationLabel(stepData) {
 }
 
 function kitchenBackgroundFor(stepData) {
+  if (stepData?.action === 'putting' || stepData?.action === 'sprinkling') return '주방_접시.png';
   return stepData.action === 'cutting' ? '주방_썰기.png' : '주방_끓이기.png';
 }
 
@@ -94,6 +110,97 @@ function isCuttingStep(stepData) {
 
 function isRoastingStep(stepData) {
   return stepData?.action === 'roasting';
+}
+
+const COURSE_DISH_ASSET = {
+  '브루스케타': ['에피타이저', '브루스케타.png'],
+  '카프레제 타르타르': ['에피타이저', '카프레제타르타르.png'],
+  '카프레제 샐러드': ['에피타이저', '카프레제타르타르.png'],
+  '크림 오브 머쉬룸': ['스타터', '크림오브머쉬룸.png'],
+  '애플 타르트': ['디저트', '애플타르트.png'],
+  '크림 브륄레': ['디저트', '크림브륄레.png'],
+  '초콜릿 라바케이크': ['디저트', '초콜릿라바케이크.png'],
+  '구운 바나나 파르페': ['디저트', '애플타르트.png'],
+};
+
+function hideFinishStage() {
+  const stage = $('#finishStage');
+  if (stage) stage.hidden = true;
+  $('.counter-scene')?.classList.remove('is-finishing');
+  stopFinishSession(finishSession);
+  finishArmed = false;
+  finishSubmitted = false;
+}
+
+function renderFinishStage(stepData) {
+  const stage = $('#finishStage');
+  const dish = $('#finishDish');
+  const tool = $('#finishTool');
+  const stream = $('#finishStream');
+  if (!stage || !dish || !tool || !stream) return;
+
+  const dishAsset = COURSE_DISH_ASSET[stepData.course?.name] || ['에피타이저', '브루스케타.png'];
+  const finishAsset = stepData.sprinklePourAsset || (stepData.action === 'sprinkling' ? '파슬리' : '올리브');
+  stage.hidden = false;
+  $('.counter-scene')?.classList.add('is-finishing');
+  dish.src = assetUrl(`./src/assets/${dishAsset[0]}/${dishAsset[1]}`);
+  tool.src = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
+  tool.dataset.idle = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
+  tool.dataset.pour = assetUrl(`./src/assets/재료/${finishAsset}_pour.png`);
+  stream.dataset.kind = stepData.sprinklePourKind || 'liquid';
+  stream.innerHTML = Array.from({ length: 26 }, (_, i) => `<i style="--i:${i};--drift:${((i * 37) % 25) - 12}px"></i>`).join('');
+  resetFinishSession(finishSession, stepData);
+  finishArmed = true;
+  finishSubmitted = false;
+  syncFinishUi();
+  $('#micStatus').textContent = '마이크를 켜고 목표 음정까지 소리를 올려보세요.';
+  $('#stepHint').textContent = '10초 안에 주황색 목표 음에 도달한 뒤 3초간 유지하세요.';
+}
+
+function syncFinishUi() {
+  const percent = holdPercent(finishSession);
+  const inTune = finishSession.pitchHz && Math.abs(finishSession.cents) <= finishSession.toleranceCents;
+  $('#pitchNeedle').style.bottom = `${pitchPercent(finishSession)}%`;
+  $('#holdFill').style.width = `${percent}%`;
+  $('#holdLabel').textContent = `${finishSession.hold.toFixed(1)} / ${finishSession.holdSeconds.toFixed(1)}초`;
+  const timeLeft = reachTimeLeft(finishSession);
+  const timer = $('#reachTimer');
+  if (finishSession.reachedAt != null) {
+    timer.textContent = `도달 ${finishSession.reachedAt.toFixed(1)}초 · 예상 ${finishAccuracy(finishSession)}점`;
+    timer.classList.remove('is-late');
+  } else if (timeLeft > 0) {
+    timer.textContent = `목표 음 도달까지 ${timeLeft.toFixed(1)}초`;
+    timer.classList.remove('is-late');
+  } else {
+    timer.textContent = '제한시간 초과 · 목표 음을 찾아 완료하세요';
+    timer.classList.add('is-late');
+  }
+  $('#finishStage').classList.toggle('is-pouring', Boolean(inTune));
+  $('#finishTool').src = inTune ? $('#finishTool').dataset.pour : $('#finishTool').dataset.idle;
+  $('#pitchLabel').textContent = !finishSession.pitchHz
+    ? '소리를 내보세요'
+    : inTune ? '좋아요! 유지하세요'
+      : finishSession.cents < 0 ? '조금 더 높게!' : '조금 더 낮게!';
+}
+
+async function playFinishTestEffect(accuracy) {
+  const stage = $('#finishStage');
+  const tool = $('#finishTool');
+  if (!finishArmed || !stage || !tool) return false;
+
+  $('#successBtn').disabled = true;
+  $('#missBtn').disabled = true;
+  stage.classList.add('is-pouring');
+  stage.classList.toggle('is-test-miss', accuracy < 60);
+  tool.src = tool.dataset.pour;
+  $('#holdFill').style.width = accuracy < 60 ? '32%' : '100%';
+  $('#holdLabel').textContent = accuracy < 60 ? '음정이 흔들렸어요' : '효과 미리보기';
+  $('#reachTimer').textContent = accuracy < 60 ? '실수 입력 · 낮은 점수' : '성공 입력 · 높은 점수';
+  $('#micStatus').textContent = accuracy < 60 ? '조금 빗나갔지만 마무리했어요.' : '완벽하게 뿌렸어요!';
+  await new Promise(resolve => setTimeout(resolve, accuracy < 60 ? 850 : 1100));
+  $('#successBtn').disabled = false;
+  $('#missBtn').disabled = false;
+  return true;
 }
 
 function syncHeatUi() {
@@ -300,6 +407,7 @@ function renderGame() {
   counterScene.classList.add('has-kitchen-background');
   counterScene.classList.toggle('is-cutting', isCuttingStep(current));
   counterScene.classList.toggle('is-roasting', isRoastingStep(current));
+  counterScene.classList.toggle('is-finishing', isFinishStep(current));
 
   const kitchenBg = $('#kitchenBg');
   kitchenBg.src = assetUrl(`./src/assets/배경/${kitchenBackgroundFor(current)}`);
@@ -313,6 +421,7 @@ function renderGame() {
   const cutIngredient = $('#cutIngredient');
 
   if (isCuttingStep(current) && ingredientFile) {
+    hideFinishStage();
     hideRoastStage();
     cutIngredient.hidden = true;
     $('#stationIcon').hidden = true;
@@ -333,6 +442,7 @@ function renderGame() {
     $('#micStatus').textContent = '마이크 켜기 → 「탁」하면 칼 자리에서 썰림 (점선=정답)';
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · 점선이 정답, 어긋나도 그 자리 절단`;
   } else if (isRoastingStep(current)) {
+    hideFinishStage();
     peakArmed = false;
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
     cutBoard.hidden = true;
@@ -344,7 +454,19 @@ function renderGame() {
     setListening(cutSession, false);
     renderRoastStage(current);
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
+  } else if (isFinishStep(current)) {
+    peakArmed = false;
+    hideRoastStage();
+    cutBoard.hidden = true;
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    cutIngredient.hidden = true;
+    $('#stationIcon').hidden = true;
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    renderFinishStage(current);
   } else {
+    hideFinishStage();
     peakArmed = false;
     hideRoastStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
@@ -418,11 +540,13 @@ on($('#successBtn'), 'click', async () => {
     await runCannedCut();
     return;
   }
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(90);
   submitStep(state, 90);
   renderGame();
 });
-on($('#missBtn'), 'click', () => {
+on($('#missBtn'), 'click', async () => {
   stopLiveMic();
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(45);
   submitStep(state, 45);
   renderGame();
 });
@@ -567,7 +691,7 @@ function volumePercentFromAnalyser(freq) {
 }
 
 function tickLiveMic(ts) {
-  if (!micOn && !roastArmed) return;
+  if (!micOn && !roastArmed && !finishArmed) return;
 
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
@@ -594,6 +718,25 @@ function tickLiveMic(ts) {
       $('#micStatus').textContent = roastHeat.blowing
         ? `후우~ 불 키우는 중 · ${bandLabel(roastHeat.band)} (${Math.round(roastHeat.heat)}%)`
         : `가만히면 약불로… · ${bandLabel(roastHeat.band)} (${Math.round(roastHeat.heat)}%)`;
+    }
+  }
+
+  if (finishArmed && isFinishStep(current)) {
+    const pitch = micOn && wave
+      ? detectPitch(wave, audioContext?.sampleRate || 48000)
+      : { frequency: 0, confidence: 0 };
+    tickFinish(finishSession, pitch, dt);
+    syncFinishUi();
+    if (micOn) $('#micStatus').textContent = $('#pitchLabel').textContent;
+    if (finishSession.complete && !finishSubmitted) {
+      finishSubmitted = true;
+      $('#micStatus').textContent = '완벽한 마무리!';
+      setTimeout(() => {
+        stopLiveMic();
+        hideFinishStage();
+        submitStep(state, finishAccuracy(finishSession));
+        renderGame();
+      }, 650);
     }
   }
 
@@ -657,7 +800,7 @@ $('#micBtn').addEventListener('click', async () => {
     if (audioContext.state === 'suspended') await audioContext.resume();
     const source = audioContext.createMediaStreamSource(liveStream);
     analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = finishArmed ? 2048 : 512;
     analyser.smoothingTimeConstant = roastArmed ? 0.45 : 0.25;
     source.connect(analyser);
 
@@ -676,6 +819,9 @@ $('#micBtn').addEventListener('click', async () => {
     } else if (roastArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '「후우~」 불어 강불 · 멈추면 약불';
+    } else if (finishArmed) {
+      stopTakSpeech();
+      $('#micStatus').textContent = '음정을 듣는 중 · 주황색 목표 구간에 맞춰보세요.';
     } else {
       $('#micStatus').textContent = '볼륨 측정 중 (이 공정은 버튼으로 진행)';
     }
