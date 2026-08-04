@@ -1,4 +1,4 @@
-import {
+﻿import {
   ACTION_LABEL,
   INGREDIENT_LABEL,
   TYPE_ICON,
@@ -33,6 +33,7 @@ import {
 } from './roastheat.js';
 import {
   createMixingSession,
+  DEFAULT_SCRIPT,
   getBowlPosition,
   getMixingOffset,
   getMixingRotation,
@@ -92,6 +93,7 @@ const cutSession = createCutSession({
 async function finishCutStep(accuracy) {
   stopLiveMic();
   const current = getCurrent(state);
+  if (!isMixingStep(current)) hideMixingStage();
   const id = primaryIngredient(current);
   const cuts = cutSession.actualCuts?.length || cutSession.marks?.length || 3;
   rememberIngredientCuts(state, id, cuts);
@@ -382,8 +384,6 @@ function hideMixingStage() {
   $('.counter-scene')?.classList.remove('is-mixing');
   
   // mixing 세션에서 로드한 이미지 및 콘텐츠 정리
-  const kitchenBg = $('#kitchenBg');
-  if (kitchenBg) kitchenBg.src = '';
   
   const bowl = $('#mixingBowlImg');
   if (bowl) bowl.src = '';
@@ -398,6 +398,7 @@ function hideMixingStage() {
   if (scoreDisplay) scoreDisplay.textContent = '';
   
   try { stopMixingSpeech(); } catch (_) {}
+  stopMixing(mixingSession);
   mixingArmed = false;
 }
 
@@ -793,7 +794,8 @@ function renderMixingStage(stepData) {
   }
 
   // 가이드 스크립트 설정 (기본값: 동구리오 타돗테모 츠키마센)
-  const guideScript = stepData?.targetPattern || '동구리오 타돗테모 츠키마센';
+  const guideScript = stepData?.scriptText || stepData?.guideScript || DEFAULT_SCRIPT;
+  const guideLine = `"${guideScript}"을 정확히 따라하세요.`;
   
   // 섞기 세션 초기화
   startMixing(mixingSession, guideScript);
@@ -845,7 +847,7 @@ function renderMixingStage(stepData) {
   // 가이드 텍스트 표시
   const guideText = $('#mixingGuideText');
   if (guideText) {
-    guideText.textContent = guideScript;
+    guideText.textContent = guideLine;
   }
 
   // 점수 표시
@@ -860,8 +862,8 @@ function renderMixingStage(stepData) {
     animationId = requestAnimationFrame(tickLiveMic);
   }
 
-  $('#stationIcon').hidden = true;
-  $('#micStatus').textContent = `마이크 켜고 대본 읽기 · "${guideScript}"`;
+  $('#micStatus').textContent = guideLine;
+  $('#stepHint').textContent = guideLine;
   $('#stepHint').textContent = `목표 소리 "${stepData.targetPattern}" · ${stepData.hint || '대본을 잘 따라 읽으세요'}`;
 }
 
@@ -1047,6 +1049,7 @@ function renderGame() {
   }
 
   const current = getCurrent(state);
+  if (!isMixingStep(current)) hideMixingStage();
   const counterScene = $('.counter-scene');
   const gameStage = $('#gameStage');
   counterScene.classList.add('has-kitchen-background');
@@ -1075,6 +1078,7 @@ function renderGame() {
   if (isCuttingStep(current) && ingredientFile) {
     hideRoastStage();
     hideBoilStage();
+    hideMixingStage();
     cutIngredient.hidden = true;
     $('#stationIcon').hidden = true;
     const passHand = $('#passHand');
@@ -1163,6 +1167,7 @@ function renderGame() {
     peakArmed = false;
     hideRoastStage();
     hideBoilStage();
+    hideMixingStage();
     hideOvenStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
     const cutStack = $('#cutStack');
@@ -1181,6 +1186,7 @@ function renderGame() {
     peakArmed = false;
     hideRoastStage();
     hideBoilStage();
+    hideMixingStage();
     hideOvenStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
     const cutStack = $('#cutStack');
@@ -1256,6 +1262,7 @@ on($('#successBtn'), 'click', async () => {
   // Ensure any live listeners and oven-specific state are cleaned up
   try { stopOvenSpeech(); } catch (_) {}
   hideOvenStage();
+  hideMixingStage();
   stopLiveMic();
   if (isCuttingStep(getCurrent(state)) && !cutSession.finished && !cutSession.animating) {
     await runCannedCut();
@@ -1267,6 +1274,7 @@ on($('#successBtn'), 'click', async () => {
 on($('#missBtn'), 'click', () => {
   try { stopOvenSpeech(); } catch (_) {}
   hideOvenStage();
+  hideMixingStage();
   stopLiveMic();
   submitStep(state, 45);
   renderGame();
@@ -1425,7 +1433,7 @@ function volumePercentFromAnalyser(freq) {
 function tickLiveMic(ts) {
   const ovenStageEl = $('#ovenStage');
   const ovenStageVisible = ovenStageEl && !ovenStageEl.hidden;
-  if (!micOn && !roastArmed && !boilArmed && !ovenArmed && !ovenStageVisible) return;
+  if (!micOn && !roastArmed && !boilArmed && !ovenArmed && !mixingArmed && !ovenStageVisible) return;
 
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
@@ -1443,6 +1451,7 @@ function tickLiveMic(ts) {
   const knife = $('#knifeHand');
   const board = $('#cutBoard');
   const current = getCurrent(state);
+  if (!isMixingStep(current)) hideMixingStage();
 
   if (boilArmed && isBoilingStep(current)) {
     const bubbling = micOn && volumePercent >= 14;
@@ -1582,7 +1591,7 @@ function tickLiveMic(ts) {
   }
 
   if (mixingArmed && isMixingStep(current)) {
-    const blowVol = micOn ? volumePercent : 0;
+    const blowVol = micOn ? volumePercent : 45;
     tickMixing(mixingSession, blowVol, dt);
     
     const mixState = getMixingState(mixingSession);
@@ -1594,7 +1603,7 @@ function tickLiveMic(ts) {
     // 보울 모션 업데이트
     const bowl = $('#mixingBowlImg');
     if (bowl) {
-      const bowlPos = getBowlPosition(mixingSession, 0, 0, 12);
+      const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
       const rotation = getBowlRotation(mixingSession);
       bowl.style.opacity = mixState.hasFailedOut ? '0.88' : '1';
       bowl.style.transform = `translate(calc(-50% + ${bowlPos.x}px), calc(-50% + ${bowlPos.y}px)) rotate(${rotation}deg)`;
@@ -1605,7 +1614,11 @@ function tickLiveMic(ts) {
     if (mixingImg) {
       const offset = getMixingOffset(mixingSession);
       const rotation = getMixingRotation(mixingSession);
-      mixingImg.style.transform = `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) rotate(${rotation}deg)`;
+      const contentYOffset = 8;
+      const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
+      const baseX = bowlPos.x + offset.x;
+      const baseY = bowlPos.y + contentYOffset + offset.y;
+      mixingImg.style.transform = `translate(calc(-50% + ${baseX}px), calc(-50% + ${baseY}px)) rotate(${rotation}deg)`;
       mixingImg.style.opacity = offset.opacity;
     }
 
@@ -1695,3 +1708,4 @@ $('#micBtn').addEventListener('click', async () => {
 
 renderPlayers();
 showScreen('start');
+

@@ -846,10 +846,10 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 
 /* Mixing stage */
 .mixing-stage{
-  position:absolute;
-  left:50%;
-  top:52%;
-  width:min(72%,560px);
+  position:fixed;
+  left:50vw;
+  top:50vh;
+  width:min(72vw,560px);
   aspect-ratio:1.15;
   transform:translate(-50%,-50%);
   pointer-events:none;
@@ -878,8 +878,8 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 .mixing-content{
   position:absolute;
   left:50%;
-  top:62%;
-  width:34%;
+  top:50%;
+  width:36%;
   height:auto;
   transform:translate(-50%,-50%);
   transform-origin:center center;
@@ -887,11 +887,14 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   filter:drop-shadow(0 10px 12px rgba(0,0,0,.28));
 }
 .mixing-guide{
-  position:relative;
-  width:100%;
+  position:absolute;
+  left:50%;
+  top:72%;
+  transform:translateX(-50%);
+  width:min(92%,520px);
   text-align:center;
-  z-index:4;
-  margin-top:12px;
+  z-index:5;
+  margin-top:0;
 }
 .guide-script{
   margin:0 0 10px;
@@ -923,7 +926,6 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   transform-origin:center 55%;
 }
 
-/* 다이얼 박스와 바늘 스타일 */
 #ovenDial{
   position:relative;
   width:100%;

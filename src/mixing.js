@@ -8,11 +8,11 @@
  */
 
 export const DEFAULT_SCRIPT = '동구리오 타돗테모 츠키마센';
-export const SCRIPT_DURATION = 10; // 대본을 읽어야 할 목표 시간(초)
+export const SCRIPT_DURATION = 25; // 대본을 읽어야 할 목표 시간(초)
 
 // 모션 파라미터
-export const ORBIT_SPEED_BASE = 30; // 기본 공전 속도(도/초)
-export const SPIN_SPEED_BASE = 360; // 기본 자전 속도(도/초)
+export const ORBIT_SPEED_BASE = 39; // 기본 공전 속도(도/초)
+export const SPIN_SPEED_BASE = 108; // 기본 자전 속도(도/초)
 export const VOLUME_MIN = 5;
 export const VOLUME_MAX = 80;
 
@@ -76,8 +76,8 @@ export function tickMixing(session, volumePercent, dtSec) {
   
   if (!session.hasFailedOut) {
     // 정상 상태: 보울 공전 + 섞기 이미지 자전
-    session.bowlOrbitAngle += ORBIT_SPEED_BASE * speedMult * dtSec;
-    session.mixingSpinAngle += SPIN_SPEED_BASE * speedMult * dtSec;
+    session.bowlOrbitAngle += ORBIT_SPEED_BASE * Math.max(0.55, speedMult) * dtSec;
+    session.mixingSpinAngle += SPIN_SPEED_BASE * Math.max(0.13, speedMult) * dtSec;
     
     // 각도 정규화 (360도 이상이면 초기화)
     session.bowlOrbitAngle = session.bowlOrbitAngle % 360;
@@ -132,7 +132,7 @@ export function tickMixing(session, volumePercent, dtSec) {
 
 export function resetMixing(session, scriptText = DEFAULT_SCRIPT) {
   session.scriptText = scriptText;
-  session.guideScript = DEFAULT_SCRIPT;
+  session.guideScript = scriptText;
   session.elapsed = 0;
   session.active = false;
   session.done = false;
