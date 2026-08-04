@@ -1,4 +1,4 @@
-﻿import {
+import {
   ACTION_LABEL,
   INGREDIENT_LABEL,
   TYPE_ICON,
@@ -137,7 +137,7 @@ function kitchenBackgroundFor(stepData) {
 const ASSET_VER = 'v45';
 
 function fitGameStage() {
-  // 풀스크린 오버레이 레이아웃 ? scale 고정 불필요
+  // 풀스크린 오버레이 레이아웃 — scale 고정 불필요
   const stage = $('#gameStage');
   if (stage) stage.style.removeProperty('--stage-scale');
 }
@@ -737,7 +737,7 @@ function startMixingSpeech() {
     }
     chunk = chunk.trim();
     
-    // ?몄떇???띿뒪?몃? 湲곕컲?쇰줈 ?蹂??쇱튂??怨꾩궛
+    // 인식된 텍스트를 기반으로 대본 일치도 계산
     if (chunk && mixingSession.guideScript) {
       const targetScript = mixingSession.guideScript;
       let matchCount = 0;
@@ -747,7 +747,7 @@ function startMixingSpeech() {
       mixingSession.recognizedText = chunk;
       mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / targetScript.length);
       
-      // 媛?대뱶 ?띿뒪???됱긽 ?낅뜲?댄듃
+      // 가이드 텍스트 색상 업데이트
       const guideText = document.getElementById('mixingGuideText');
       if (guideText) {
         let html = '';
@@ -921,6 +921,7 @@ function renderMixingStage(stepData) {
     }
     guideText.innerHTML = html;
   }
+  }
 
   // 점수 표시
   const scoreDisplay = $('#mixingScore');
@@ -1030,7 +1031,7 @@ function showScreen(name) {
 }
 
 function renderPlayers() {
-  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">??</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['?????', '?????', '?????'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
+  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
 }
 
 let draggedPlayerCard = null;
@@ -1559,7 +1560,7 @@ function tickLiveMic(ts) {
       const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
       const toastBit = ingId === 'baguette' ? ` · ${toastStatusLabel(roastToastLevel(roastHeat))}` : '';
       $('#micStatus').textContent = roastHeat.blowing
-        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ?' : ''}${toastBit}`
+        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ✓' : ''}${toastBit}`
         : `쉬면 천천히 약불로… · 목표 ${bandLabel(roastHeat.targetBand)}${toastBit}`;
     }
     if (roastHeat.done) {
@@ -1780,6 +1781,4 @@ $('#micBtn').addEventListener('click', async () => {
 
 renderPlayers();
 showScreen('start');
-
-
 
