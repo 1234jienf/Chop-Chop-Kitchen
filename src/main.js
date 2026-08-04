@@ -5,7 +5,7 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=55';
+} from './data.js?v=57';
 import {
   calculateResult,
   createGameState,
@@ -16,7 +16,7 @@ import {
   rememberIngredientCuts,
   startNextDay,
   submitStep,
-} from './state.js?v=55';
+} from './state.js?v=57';
 import {
   advanceKnife,
   attachKnifeToTomato,

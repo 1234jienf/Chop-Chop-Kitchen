@@ -37,6 +37,13 @@ export const TYPE_ICON = {
   sprinklePour: '✨',
 };
 
+const MENU_CATEGORIES = ['appetizer', 'starter', 'main', 'dessert'];
+
+const randomItem = (items, random = Math.random) => {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return items[Math.floor(random() * items.length)];
+};
+
 /** 재료 id → 에셋 파일명 (없으면 null) */
 export const INGREDIENT_ASSETS = {
   tomatoes: '토마토.png',
@@ -259,7 +266,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'main', categoryLabel: '메인', name: 'Meatball Pasta', nameKo: '미트볼 파스타', level: 'easy',
+    category: 'main',
+    categoryLabel: '메인',
+    name: 'Meatball Pasta',
+    nameKo: '미트볼 파스타',
+    level: 'easy',
     steps: [
       step('cutting', ['onion'], { title: '양파 자르기', targetPattern: '탁·탁·탁', hint: '일정하게 썰어요.' }),
       step('roasting', ['meatball'], { title: '미트볼 시어링', targetPattern: '치이이익', hint: '겉면을 노릇하게 구우세요.' }),
@@ -332,7 +343,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'dessert', categoryLabel: '디저트', name: 'Chocolate Lava Cake', nameKo: '초콜릿 라바케이크', level: 'hard',
+    category: 'dessert',
+    categoryLabel: '디저트',
+    name: 'Chocolate Lava Cake',
+    nameKo: '초콜릿 라바케이크',
+    level: 'hard',
     steps: [
       step('cutting', ['chocolate'], { title: '다크 초콜릿 조각내기', targetPattern: '콰직!', hint: '작은 조각으로 나누세요.' }),
       step('roasting', ['chocolate'], { title: '라바 케이크 오븐 굽기', targetPattern: '치이이익', hint: '가운데는 촉촉하게 구우세요.' }),
@@ -357,25 +372,75 @@ function toCourse(recipe) {
   };
 }
 
-/** 시작 추천: 브루스케타 + 미네스트로네 + 스테이크 + 애플 타르트 */
-export const STARTER_MENU = {
-  id: 'starter',
-  name: '시작 추천 4코스',
-  courses: [
-    toCourse(byKo('브루스케타')),
-    toCourse(byKo('미네스트로네')),
-    toCourse(byKo('스테이크 플레이트')),
-    toCourse(byKo('애플 타르트')),
-  ],
-};
+function recipePoolForCategory(category) {
+  return RECIPE_CATALOG.filter((recipe) => recipe.category === category);
+}
 
+function pickRecipeForCategory(category, random = Math.random) {
+  return randomItem(recipePoolForCategory(category), random);
+}
+
+export function createStarterMenu(random = Math.random) {
+  const courses = MENU_CATEGORIES
+    .map((category) => pickRecipeForCategory(category, random))
+    .filter(Boolean)
+    .map((recipe) => toCourse(recipe));
+
+  return {
+    id: 'starter',
+    name: '시작 추천 4코스',
+    courses,
+  };
+}
+
+/** 시작 추천: 카테고리별 랜덤 4코스 */
+export const STARTER_MENU = createStarterMenu();
 export const MENUS = [STARTER_MENU];
 
 export const GUESTS = [
-  { name: '불맛 애호가 민지', demand: '메인의 불맛이 강하면 보너스!', bonusType: 'grill' },
-  { name: '섬세한 평론가 서연', demand: '재료가 고르게 손질되면 보너스!', bonusType: 'cut' },
-  { name: '소스 장인 지우', demand: '끓이기 공정이 정확하면 보너스!', bonusType: 'boil' },
+  { name: '칼끝이 정밀한 민지', bonusType: 'cut', level: 1 },
+  { name: '리듬을 잘 타는 서연', bonusType: 'cut', level: 2 },
+  { name: '칼질 마스터 지우', bonusType: 'cut', level: 3 },
+  { name: '불향을 좋아하는 민호', bonusType: 'grill', level: 1 },
+  { name: '향을 맡는 서진', bonusType: 'grill', level: 2 },
+  { name: '불맛 감별사 태우', bonusType: 'grill', level: 3 },
+  { name: '끓임을 즐기는 지우', bonusType: 'boil', level: 1 },
+  { name: '온도에 예민한 나연', bonusType: 'boil', level: 2 },
+  { name: '보글 마스터 현우', bonusType: 'boil', level: 3 },
+  { name: '부드럽게 섞는 수아', bonusType: 'mix', level: 1 },
+  { name: '대본을 잘 읽는 유진', bonusType: 'mix', level: 2 },
+  { name: '한번에 섞는 민석', bonusType: 'mix', level: 3 },
+  { name: '가볍게 뿌리는 하린', bonusType: 'sprinklePour', level: 1 },
+  { name: '정확히 붓는 도윤', bonusType: 'sprinklePour', level: 2 },
+  { name: '마무리 장인 예은', bonusType: 'sprinklePour', level: 3 },
 ];
+
+export function getGuestLevel(state) {
+  const dayLevel = Number(state?.day || 1);
+  if (!Number.isFinite(dayLevel)) return 1;
+  return Math.max(1, Math.min(3, Math.floor(dayLevel)));
+}
+
+function guestDemandForMenu(guest, menu) {
+  const courseNames = (menu?.courses || []).map((course) => course.name).filter(Boolean).join(' · ');
+  const menuText = courseNames || '오늘 메뉴';
+  const actionText = TYPE_LABEL[guest.bonusType] || guest.bonusType;
+  return `${menuText}가 포함된 오늘 코스에서 ${actionText}이 잘 맞으면 보너스!`;
+}
+
+export function getGuestsForLevel(level) {
+  const target = Math.max(1, Math.min(3, Number(level) || 1));
+  return GUESTS.filter((guest) => guest.level === target);
+}
+
+export function pickGuestForLevel(level, menu, random = Math.random) {
+  const pool = getGuestsForLevel(level);
+  const chosen = pool.length ? pool[Math.floor(random() * pool.length)] : GUESTS[0];
+  return {
+    ...chosen,
+    demand: guestDemandForMenu(chosen, menu),
+  };
+}
 
 export function ingredientAsset(ingredientId) {
   return INGREDIENT_ASSETS[ingredientId] || null;

@@ -1,15 +1,16 @@
-import { GUESTS, PLAYERS, STARTER_MENU } from './data.js?v=55';
+import { PLAYERS, createStarterMenu, getGuestLevel, pickGuestForLevel } from './data.js?v=57';
 
 const flattenSteps = (menu) =>
   menu.courses.flatMap((course) => course.steps.map((process) => ({ ...process, course })));
 
 export function createGameState() {
+  const menu = createStarterMenu();
   return {
     day: 1,
     money: 1200,
     grade: '1성',
-    menu: STARTER_MENU,
-    guest: GUESTS[Math.floor(Math.random() * GUESTS.length)],
+    menu,
+    guest: pickGuestForLevel(1, menu),
     players: [...PLAYERS],
     currentStep: 0,
     results: [],
@@ -54,7 +55,7 @@ export function startNextDay(state) {
   state.day += 1;
   state.money += result.revenue;
   state.grade = state.money >= 3000 ? '2성' : '1성';
-  state.guest = GUESTS[Math.floor(Math.random() * GUESTS.length)];
+  state.guest = pickGuestForLevel(getGuestLevel(state), state.menu);
   state.currentStep = 0;
   state.results = [];
   state.finished = false;
