@@ -1589,7 +1589,7 @@ on($('#successBtn'), 'click', async () => {
   if (isFinishStep(getCurrent(state))) await playFinishTestEffect(90);
   commitStep(90);
 });
-on($('#missBtn'), 'click', () => {
+on($('#missBtn'), 'click', async () => {
   try { stopOvenSpeech(); } catch (_) {}
   hideOvenStage();
   hideMixingStage();
@@ -2067,4 +2067,3 @@ document.addEventListener('click', (event) => {
 
 renderPlayers();
 showScreen('start');
-
