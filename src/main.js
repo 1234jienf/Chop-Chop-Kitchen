@@ -17,6 +17,8 @@ import {
   detectTakBurst,
   playCannedCut,
   renderCutBoard,
+  renderLiveTomato,
+  renderSplitBoard,
   resetCutSession,
   setListening,
   syncKnifeEl,
@@ -47,10 +49,91 @@ import {
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
+let setupPlayerIds = ['p1', 'p2', 'p3'];
+const multiplayer = new KitchenMultiplayer({
+  onRoom: (snapshot) => {
+    if (snapshot.disconnected) {
+      $('#multiStatus').textContent = '멀티 연결이 끊겼습니다.';
+      return;
+    }
+    const names = new Map(snapshot.players.map((p) => [p.id, p.name]));
+    if (!snapshot.game.started) {
+      setupPlayerIds = snapshot.game.order?.length
+        ? [...snapshot.game.order]
+        : snapshot.players.map((p) => p.id);
+      state.players = setupPlayerIds.map((id) => names.get(id));
+      renderPlayers();
+    }
+    const ready = snapshot.players.filter((p) => p.ready).length;
+    $('#multiStatus').textContent = `${snapshot.room} 방 · ${snapshot.players.length}/3명 · 준비 ${ready}/3`;
+    const me = snapshot.players.find((p) => p.id === multiplayer.playerId);
+    $('#confirmTeamBtn').textContent = me?.ready ? '준비 완료 ✓' : '준비하고 시작하기 →';
+  },
+  onGame: applySharedSnapshot,
+  onActivity: (activity) => {
+    if (multiplayer.isMyTurn) return;
+    const current = getCurrent(state);
+    if (activity.volume != null) $('#voiceBar').style.width = `${activity.volume}%`;
+    if (activity.knifeX != null) {
+      cutSession.knifeX = activity.knifeX;
+      syncKnifeEl($('#knifeHand'), cutSession);
+    }
+    if (isCuttingStep(current) && Array.isArray(activity.actualCuts)) {
+      const knife = $('#knifeHand');
+      const counterScene = $('.counter-scene');
+      const previousCutCount = cutSession.actualCuts.length;
+      cutSession.actualCuts = [...activity.actualCuts];
+      if (Array.isArray(activity.cutDone)) cutSession.cutDone = [...activity.cutDone];
+      // renderLiveTomato replaces the board contents. Preserve the shared knife
+      // outside that subtree so spectator re-renders cannot delete it.
+      if (knife && counterScene && knife.parentElement !== counterScene) {
+        counterScene.appendChild(knife);
+      }
+      renderLiveTomato($('#cutBoard'), cutSession, {
+        justCut: cutSession.actualCuts.length > previousCutCount,
+      });
+      attachKnifeToTomato($('#cutBoard'), knife, cutSession.knifeX);
+    }
+    if (isCuttingStep(current)
+      && activity.cutPhase === 'handoff'
+      && activity.stepIndex === state.currentStep) {
+      const knife = $('#knifeHand');
+      const counterScene = $('.counter-scene');
+      if (knife && counterScene && knife.parentElement !== counterScene) {
+        counterScene.appendChild(knife);
+      }
+      if (knife) {
+        knife.hidden = true;
+        knife.classList.remove('knife-hand--on-tomato', 'chopping');
+      }
+      cutSession.finished = true;
+      $('#cutBoard').classList.add('is-burst');
+      renderSplitBoard($('#cutBoard'), cutSession);
+      void playBoardHandoff();
+    }
+    if (activity.heat != null) {
+      roastHeat.heat = activity.heat;
+      roastHeat.band = activity.band;
+      syncHeatUi();
+      if (isRoastingStep(current)) syncRoastToastVisuals(primaryIngredient(current));
+    }
+    if (isBoilingStep(current) && activity.boilProgress != null) {
+      boilProgress = activity.boilProgress;
+      if (activity.boilLevel != null) boilLevel = activity.boilLevel;
+      syncBoilFx();
+    }
+    if (isFinishStep(current) && activity.finish) {
+      Object.assign(finishSession, activity.finish);
+      syncFinishUi();
+    }
+  },
+  onError: (message) => { $('#multiStatus').textContent = message; },
+});
 let micOn = false;
 let liveStream = null;
 let peakArmed = false;
 let roastArmed = false;
+let finishArmed = false;
 let boilArmed = false;
 let ovenArmed = false;
 let ovenStartTimer = null;
@@ -68,6 +151,8 @@ let lastSpeechTakAt = 0;
 let wasAboveBurst = false;
 let speechKickTimer = null;
 const roastHeat = createRoastHeat();
+const finishSession = createFinishSession();
+let finishSubmitted = false;
 let lastFireBand = 'mid';
 let lastToastLevel = 0;
 let boilProgress = 0;
@@ -84,6 +169,7 @@ let mixingSpeechWanted = false;
 let audioContext = null;
 let analyser = null;
 let animationId = null;
+let lastActivitySentAt = 0;
 
 const cutSession = createCutSession({
   onStatus: (msg) => { $('#micStatus').textContent = msg; },
@@ -106,11 +192,18 @@ async function finishCutStep(accuracy) {
   const next = steps[state.currentStep + 1];
   const willCutNext = next?.action === 'cutting';
 
+  if (multiplayer.connected && multiplayer.isMyTurn) {
+    multiplayer.sendActivity({
+      cutPhase: 'handoff',
+      stepIndex: state.currentStep,
+    });
+  }
   await playBoardHandoff();
-  submitStep(state, accuracy);
-  renderGame();
-  scheduleFitGameStage();
-  if (willCutNext && isCuttingStep(getCurrent(state))) {
+  commitStep(accuracy);
+  // In multiplayer the authoritative snapshot advances the step and re-renders
+  // every client. Only the offline path can safely inspect the next local step
+  // immediately after committing it.
+  if (!multiplayer.connected && willCutNext && isCuttingStep(getCurrent(state))) {
     await playBoardEnter();
   }
 }
@@ -127,6 +220,7 @@ function stationLabel(stepData) {
 }
 
 function kitchenBackgroundFor(stepData) {
+  if (stepData?.action === 'putting' || stepData?.action === 'sprinkling') return '주방_접시.png';
   if (stepData?.action === 'cutting') return '주방_배경.png';
   if (stepData?.action === 'roasting') return '주방_끓이기.png';
   if (stepData?.action === 'mixing') return '주방_배경.png';
@@ -155,7 +249,10 @@ function waitMs(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+let boardHandoffToken = 0;
+
 async function playBoardHandoff() {
+  const token = ++boardHandoffToken;
   const stack = $('#cutStack');
   const hand = $('#passHand');
   const knife = $('#knifeHand');
@@ -176,9 +273,11 @@ async function playBoardHandoff() {
   }
 
   await waitMs(280);
+  if (token !== boardHandoffToken) return;
   stack.classList.remove('is-entering');
   stack.classList.add('is-passing-out');
   await waitMs(900);
+  if (token !== boardHandoffToken) return;
 
   stack.classList.remove('is-passing-out');
   stack.hidden = true;
@@ -1005,7 +1104,18 @@ function renderRoastStage(stepData) {
 async function runCannedCut() {
   const knife = $('#knifeHand');
   const board = $('#cutBoard');
-  await playCannedCut(cutSession, { knifeEl: knife, boardEl: board });
+  await playCannedCut(cutSession, {
+    knifeEl: knife,
+    boardEl: board,
+    onProgress: (session) => {
+      if (!multiplayer.connected || !multiplayer.isMyTurn) return;
+      multiplayer.sendActivity({
+        knifeX: session.knifeX,
+        actualCuts: session.actualCuts,
+        cutDone: session.cutDone,
+      });
+    },
+  });
 }
 
 async function finishVoiceCut() {
@@ -1030,7 +1140,7 @@ function showScreen(name) {
 }
 
 function renderPlayers() {
-  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
+  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" data-player-id="${setupPlayerIds[index] || `p${index + 1}`}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름" ${multiplayer.connected ? 'readonly' : ''}></label></article>`).join('');
 }
 
 let draggedPlayerCard = null;
@@ -1044,16 +1154,40 @@ function movePlayerDragGhost(event) {
   playerDragGhost.style.top = `${event.clientY - playerDragOffset.y}px`;
 }
 
+function clearPlayerDragVisuals() {
+  document.querySelectorAll('.player-drag-ghost').forEach((ghost) => ghost.remove());
+  $('#playerSetup').querySelectorAll('.player-card.dragging').forEach((card) => {
+    card.classList.remove('dragging');
+    card.setAttribute('aria-grabbed', 'false');
+  });
+  document.body.classList.remove('is-dragging-player');
+}
+
 function finishPlayerDrag() {
-  if (!draggedPlayerCard) return;
+  if (!draggedPlayerCard) {
+    clearPlayerDragVisuals();
+    return;
+  }
+  const pointerId = playerDragPointerId;
   const cards = [...$('#playerSetup').querySelectorAll('.player-card')];
   const reorderedPlayers = cards.map(card => state.players[Number(card.dataset.playerIndex)]);
+  const reorderedIds = cards.map(card => card.dataset.playerId);
   state.players.splice(0, state.players.length, ...reorderedPlayers);
-  playerDragGhost?.remove();
+  setupPlayerIds.splice(0, setupPlayerIds.length, ...reorderedIds);
+  if (multiplayer.connected && setupPlayerIds.length === 3) {
+    multiplayer.setOrder([...setupPlayerIds], {
+      day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+    });
+    $('#multiStatus').textContent = '변경한 릴레이 순서를 모두에게 반영했습니다. 다시 준비해 주세요.';
+  }
   draggedPlayerCard = null;
   playerDragGhost = null;
   playerDragPointerId = null;
-  document.body.classList.remove('is-dragging-player');
+  const setup = $('#playerSetup');
+  if (pointerId != null && setup.hasPointerCapture?.(pointerId)) {
+    setup.releasePointerCapture(pointerId);
+  }
+  clearPlayerDragVisuals();
   renderPlayers();
 }
 
@@ -1061,6 +1195,7 @@ $('#playerSetup').addEventListener('pointerdown', event => {
   if (event.button !== 0 || event.target.closest('input, button')) return;
   const card = event.target.closest('.player-card');
   if (!card) return;
+  if (draggedPlayerCard || document.querySelector('.player-drag-ghost')) finishPlayerDrag();
   event.preventDefault();
   const rect = card.getBoundingClientRect();
   draggedPlayerCard = card;
@@ -1072,7 +1207,7 @@ $('#playerSetup').addEventListener('pointerdown', event => {
   playerDragGhost.style.height = `${rect.height}px`;
   card.classList.add('dragging');
   card.setAttribute('aria-grabbed', 'true');
-  card.setPointerCapture(event.pointerId);
+  $('#playerSetup').setPointerCapture(event.pointerId);
   document.body.append(playerDragGhost);
   document.body.classList.add('is-dragging-player');
   movePlayerDragGhost(event);
@@ -1096,6 +1231,18 @@ $('#playerSetup').addEventListener('pointerup', event => {
 });
 $('#playerSetup').addEventListener('pointercancel', event => {
   if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
+$('#playerSetup').addEventListener('lostpointercapture', event => {
+  if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
+window.addEventListener('pointerup', event => {
+  if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
+window.addEventListener('pointercancel', event => {
+  if (event.pointerId === playerDragPointerId) finishPlayerDrag();
+});
+window.addEventListener('blur', () => {
+  if (draggedPlayerCard || document.querySelector('.player-drag-ghost')) finishPlayerDrag();
 });
 
 function renderGame() {
@@ -1127,6 +1274,7 @@ function renderGame() {
   counterScene.classList.add('has-kitchen-background');
   counterScene.classList.toggle('is-cutting', isCuttingStep(current));
   counterScene.classList.toggle('is-roasting', isRoastingStep(current));
+  counterScene.classList.toggle('is-finishing', isFinishStep(current));
   counterScene.classList.toggle('is-boiling', isBoilingStep(current));
   counterScene.classList.toggle('is-oven', isOvenStep(current));
   counterScene.classList.toggle('is-mixing', isMixingStep(current));
@@ -1148,6 +1296,7 @@ function renderGame() {
   const cutIngredient = $('#cutIngredient');
 
   if (isCuttingStep(current) && ingredientFile) {
+    hideFinishStage();
     hideRoastStage();
     hideBoilStage();
     hideMixingStage();
@@ -1186,6 +1335,7 @@ function renderGame() {
     $('#micStatus').textContent = '마이크 켜기 → 「탁」하면 칼 자리에서 썰림 (점선=정답)';
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · 점선이 정답, 어긋나도 그 자리 절단`;
   } else if (isRoastingStep(current)) {
+    hideFinishStage();
     peakArmed = false;
     hideBoilStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
@@ -1288,10 +1438,56 @@ function renderGame() {
   if (!isRoastingStep(current) && !isBoilingStep(current)) {
     $('#stationIcon').textContent = TYPE_ICON[current.type];
   }
-  $('#stationLabel').textContent = `${current.course.name} / ${stationLabel(current)}`;
-  $('#playerLabel').textContent = `${getPlayer(state)}의 차례`;
-  $('#stepTitle').textContent = current.title;
-  $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
+  scheduleFitGameStage();
+}
+
+function applySharedSnapshot(snapshot) {
+  const game = snapshot.game;
+  const previousStepIndex = state.currentStep;
+  const previousStep = getSteps(state)[previousStepIndex];
+  const shared = game.sharedState || {};
+  if (shared.day != null) state.day = shared.day;
+  if (shared.money != null) state.money = shared.money;
+  if (shared.grade) state.grade = shared.grade;
+  if (shared.guest) state.guest = shared.guest;
+  const playersById = new Map(snapshot.players.map((p) => [p.id, p.name]));
+  setupPlayerIds = [...game.order];
+  state.players = game.order.map((id) => playersById.get(id));
+  state.currentStep = game.currentStep;
+  state.results = game.results.map((accuracy, index) => ({ ...getSteps(state)[index], accuracy }));
+  state.ingredientCuts = { ...game.ingredientCuts };
+  state.finished = state.currentStep >= getSteps(state).length;
+  if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
+  renderGame();
+  showScreen(state.finished ? 'result' : 'game');
+  const currentStep = getCurrent(state);
+  if (state.currentStep === previousStepIndex + 1
+    && isCuttingStep(previousStep)
+    && isCuttingStep(currentStep)) {
+    void playBoardEnter();
+  }
+}
+
+function applyTurnPermissions() {
+  const myTurn = multiplayer.isMyTurn;
+  const actions = $('.actions');
+  actions?.classList.toggle('is-spectating', !myTurn);
+  ['#micBtn', '#successBtn', '#missBtn'].forEach((selector) => { $(selector).disabled = !myTurn; });
+  if (!myTurn) {
+    stopLiveMic();
+    $('#micStatus').textContent = `${getPlayer(state)}의 조리를 관전 중입니다. 화면은 실시간으로 동기화됩니다.`;
+  }
+}
+
+function commitStep(accuracy) {
+  stopLiveMic();
+  if (multiplayer.connected) {
+    if (!multiplayer.isMyTurn) return;
+    multiplayer.submitStep(accuracy, state.ingredientCuts);
+    return;
+  }
+  submitStep(state, accuracy);
+  renderGame();
   scheduleFitGameStage();
 }
 
@@ -1321,8 +1517,35 @@ on($('#playerSetup'), 'input', (event) => {
     state.players[Number(event.target.dataset.player)] = event.target.value.trim() || `셰프 ${Number(event.target.dataset.player) + 1}`;
   }
 });
+on($('#connectMultiBtn'), 'click', async () => {
+  const button = $('#connectMultiBtn');
+  button.disabled = true;
+  $('#multiStatus').textContent = '멀티 방에 연결하는 중…';
+  try {
+    await multiplayer.connect({
+      url: defaultMultiplayerUrl(),
+      room: $('#roomCode').value,
+      name: $('#myPlayerName').value.trim() || '셰프',
+    });
+    button.textContent = '연결됨';
+  } catch (error) {
+    button.disabled = false;
+    $('#multiStatus').textContent = `${error.message} · 오프라인 플레이는 계속할 수 있습니다.`;
+  }
+});
 on($('#confirmTeamBtn'), 'click', () => {
   try {
+    if (multiplayer.connected) {
+      if (setupPlayerIds.length !== 3) {
+        $('#multiStatus').textContent = '3명이 모두 들어와야 순서를 제출할 수 있습니다.';
+        return;
+      }
+      multiplayer.setReady(true, {
+        day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+      });
+      $('#multiStatus').textContent = '준비 완료! 다른 셰프를 기다리는 중…';
+      return;
+    }
     renderGame();
     showScreen('game');
   } catch (err) {
@@ -1340,16 +1563,16 @@ on($('#successBtn'), 'click', async () => {
     await runCannedCut();
     return;
   }
-  submitStep(state, 90);
-  renderGame();
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(90);
+  commitStep(90);
 });
 on($('#missBtn'), 'click', () => {
   try { stopOvenSpeech(); } catch (_) {}
   hideOvenStage();
   hideMixingStage();
   stopLiveMic();
-  submitStep(state, 45);
-  renderGame();
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(45);
+  commitStep(45);
 });
 on($('#fireTestBtns'), 'click', (event) => {
   const btn = event.target.closest('[data-fire-test]');
@@ -1358,6 +1581,9 @@ on($('#fireTestBtns'), 'click', (event) => {
 });
 on($('#nextDayBtn'), 'click', () => {
   startNextDay(state);
+  if (multiplayer.connected) multiplayer.nextDay({
+    day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+  });
   showScreen('restaurant');
 });
 
@@ -1525,6 +1751,32 @@ function tickLiveMic(ts) {
   const current = getCurrent(state);
   if (!isMixingStep(current)) hideMixingStage();
 
+  if (multiplayer.connected && multiplayer.isMyTurn && ts - lastActivitySentAt >= 100) {
+    lastActivitySentAt = ts;
+    multiplayer.sendActivity({
+      volume: volumePercent,
+      knifeX: isCuttingStep(current) ? cutSession.knifeX : null,
+      actualCuts: isCuttingStep(current) ? cutSession.actualCuts : null,
+      cutDone: isCuttingStep(current) ? cutSession.cutDone : null,
+      heat: isRoastingStep(current) ? roastHeat.heat : null,
+      band: isRoastingStep(current) ? roastHeat.band : null,
+      boilProgress: isBoilingStep(current) ? boilProgress : null,
+      boilLevel: isBoilingStep(current) ? boilLevel : null,
+      finish: isFinishStep(current) ? {
+        targetIndex: finishSession.targetIndex,
+        targetHz: finishSession.targetHz,
+        hold: finishSession.hold,
+        pitchHz: finishSession.pitchHz,
+        cents: finishSession.cents,
+        isPouring: finishSession.isPouring,
+        phaseElapsed: finishSession.phaseElapsed,
+        reachedAt: finishSession.reachedAt,
+        phaseScores: finishSession.phaseScores,
+        complete: finishSession.complete,
+      } : null,
+    });
+  }
+
   if (boilArmed && isBoilingStep(current)) {
     const bubbling = micOn && volumePercent >= 14;
     const stage = $('#boilStage');
@@ -1543,8 +1795,7 @@ function tickLiveMic(ts) {
       hideBoilStage();
       stopLiveMic();
       $('#micStatus').textContent = `수프 완성 · ${score}점`;
-      submitStep(state, score);
-      renderGame();
+      commitStep(score);
       return;
     }
   }
@@ -1574,8 +1825,7 @@ function tickLiveMic(ts) {
       $('#micStatus').textContent = ingId === 'baguette'
         ? `바게트 굽3 완성 · ${score}점`
         : `굽기 완료 · ${score}점`;
-      submitStep(state, score);
-      renderGame();
+      commitStep(score);
       return;
     }
   }
@@ -1729,12 +1979,18 @@ $('#micBtn').addEventListener('click', async () => {
       return;
     }
 
-    liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    liveStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    });
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     if (audioContext.state === 'suspended') await audioContext.resume();
     const source = audioContext.createMediaStreamSource(liveStream);
     analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = finishArmed ? 2048 : 512;
     analyser.smoothingTimeConstant = (roastArmed || boilArmed) ? 0.45 : 0.25;
     source.connect(analyser);
 

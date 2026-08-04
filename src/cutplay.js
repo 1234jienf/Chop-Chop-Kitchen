@@ -357,7 +357,7 @@ export async function completeAfterVoice(session, ctx) {
   await finishSplit(session, ctx);
 }
 
-export async function playCannedCut(session, { knifeEl, boardEl } = {}) {
+export async function playCannedCut(session, { knifeEl, boardEl, onProgress } = {}) {
   if (session.finished || session.animating) return null;
   session.animating = true;
   session.moving = false;
@@ -379,6 +379,7 @@ export async function playCannedCut(session, { knifeEl, boardEl } = {}) {
       renderLiveTomato(boardEl, session, { justCut: true });
       if (knifeEl) attachKnifeToTomato(boardEl, knifeEl, session.knifeX);
     }
+    onProgress?.(session);
     await wait(150);
   }
 

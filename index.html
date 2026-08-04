@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Lexend:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=50" />
-  </head>
+<link rel="stylesheet" href="./styles.css?v=50" />
+</head>
   <body>
     <main id="app">
       <section class="screen start-screen active" data-screen="start">
@@ -44,8 +44,13 @@
           <h2>오늘의 릴레이 순서를 정하세요</h2>
           <p class="muted">각 셰프는 순서대로 자르기, 끓이기, 굽기 공정을 이어받습니다.</p>
           <div id="playerSetup" class="player-setup"></div>
+          <div class="multiplayer-panel">
+            <b>3인 온라인 멀티</b>
+            <div><input id="roomCode" value="KITCHEN" maxlength="12" aria-label="방 코드"><input id="myPlayerName" value="셰프" maxlength="12" aria-label="내 이름"><button id="connectMultiBtn" class="secondary">방 참가</button></div>
+            <p id="multiStatus" class="muted">멀티 서버에 연결하면 각자 원하는 순서를 제출할 수 있습니다.</p>
+          </div>
           <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드를 꾹 누른 채 원하는 위치로 끌어 놓으세요.</p></div>
-          <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">이 순서로 시작하기 →</button></div>
+          <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">준비하고 시작하기 →</button></div>
         </div>
       </section>
 
@@ -153,6 +158,23 @@
                 <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=50" alt="" hidden>
                 <div id="stationIcon" class="station-icon">🔪</div>
                 <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
+              </div>
+              <div id="finishStage" class="finish-stage" hidden>
+                <img id="finishDish" class="finish-dish" alt="완성 직전 요리" draggable="false" />
+                <div id="finishStream" class="finish-stream" aria-hidden="true"></div>
+                <img id="finishTool" class="finish-tool" alt="마무리 재료" draggable="false" />
+                <div class="finish-breath" aria-hidden="true"><i></i><i></i><i></i></div>
+                <div class="pitch-gauge" aria-label="음정 게이지">
+                  <span>높음</span>
+                  <div class="pitch-track">
+                    <i class="pitch-target"></i>
+                    <b id="pitchNeedle" class="pitch-needle"></b>
+                  </div>
+                  <span>낮음</span>
+                  <strong id="pitchLabel">소리를 내보세요</strong>
+                </div>
+                <div class="hold-gauge"><div id="holdFill"></div><b id="holdLabel">0.0 / 2.0초</b></div>
+                <p id="reachTimer" class="reach-timer">목표 음 도달까지 10.0초</p>
               </div>
 
               <aside class="hud-drawer guest-drawer" id="guestDrawer">
