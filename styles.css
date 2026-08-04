@@ -1010,12 +1010,14 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 }
 .hud-hint{
   margin:4px 0 0;
-  color:#cbb59a;
-  font-size:.72rem;
+  color:#fff0d6;
+  font-size:.76rem;
+  font-weight:700;
   line-height:1.35;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
+  text-shadow:0 2px 8px #000, 0 1px 2px #000;
 }
 .hud-top .stats{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
 .hud-top .stats span{
@@ -1155,8 +1157,22 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   scrollbar-width:thin;
   transition:opacity .25s ease, transform .25s ease;
 }
-.guest-drawer{left:12px}
-.progress-drawer{right:12px}
+.guest-drawer{
+  left:16px;
+  top:84px;
+  bottom:112px;
+  width:220px;
+  background:rgba(12,8,6,.76);
+  border-color:rgba(255,220,170,.28);
+}
+.progress-drawer{
+  right:16px;
+  top:84px;
+  bottom:112px;
+  width:220px;
+  background:rgba(12,8,6,.76);
+  border-color:rgba(255,220,170,.28);
+}
 .hud-drawer .section-label{margin:0 0 10px; font-size:.62rem}
 .hud-drawer .guest-card{
   margin-bottom:16px;
@@ -1192,6 +1208,24 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 .game-stage.is-cutting .hud-drawer:hover{
   opacity:.92;
   pointer-events:auto;
+  transform:scale(1);
+}
+.game-stage.is-cutting .guest-drawer,
+.game-stage.is-roasting .guest-drawer,
+.game-stage.is-boiling .guest-drawer,
+.game-stage.is-cutting .progress-drawer,
+.game-stage.is-roasting .progress-drawer,
+.game-stage.is-boiling .progress-drawer{
+  opacity:.68;
+  transform:scale(.99);
+}
+.game-stage.is-cutting .guest-drawer:hover,
+.game-stage.is-roasting .guest-drawer:hover,
+.game-stage.is-boiling .guest-drawer:hover,
+.game-stage.is-cutting .progress-drawer:hover,
+.game-stage.is-roasting .progress-drawer:hover,
+.game-stage.is-boiling .progress-drawer:hover{
+  opacity:.96;
   transform:scale(1);
 }
 
@@ -1248,17 +1282,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 }
 
 .game-stage .station-label{
-  top:16px;
-  left:50%;
-  transform:translateX(-50%);
-  padding:8px 14px;
-  border-radius:999px;
-  background:rgba(0,0,0,.55);
-  border:1px solid var(--ui-glass-border);
-  backdrop-filter:blur(6px);
-  font-size:.7rem;
-  font-weight:700;
-  letter-spacing:.04em;
+  display:none!important;
 }
 
 @media (max-width:900px){
@@ -1277,6 +1301,13 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   .cut-stack .pass-hand{width:52%; max-width:280px}
 }
 @media (max-height:720px){
+  .guest-drawer,
+  .progress-drawer{
+    top:72px;
+    bottom:104px;
+    width:204px;
+    padding:11px 10px;
+  }
   .hud-top .stats span:nth-child(2),
   .hud-top .stats span:nth-child(3){display:none}
 }
