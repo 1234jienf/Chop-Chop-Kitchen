@@ -1,12 +1,12 @@
-import {
+﻿import {
   ACTION_LABEL,
   INGREDIENT_LABEL,
   TYPE_ICON,
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js';
-import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js';
+} from './data.js?v=50';
+import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js?v=50';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -21,7 +21,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js';
+} from './cutplay.js?v=50';
 import {
   bandLabel,
   createRoastHeat,
@@ -30,7 +30,7 @@ import {
   roastAccuracy,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js';
+} from './roastheat.js?v=50';
 import {
   createMixingSession,
   DEFAULT_SCRIPT,
@@ -43,7 +43,7 @@ import {
   startMixing,
   stopMixing,
   tickMixing,
-} from './mixing.js';
+} from './mixing.js?v=50';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -920,7 +920,6 @@ function renderMixingStage(stepData) {
       html += `<span>${guideScript[i]}</span>`;
     }
     guideText.innerHTML = html;
-  }
   }
 
   // 점수 표시
