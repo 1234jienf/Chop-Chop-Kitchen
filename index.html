@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Lexend:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=43" />
+    <link rel="stylesheet" href="./styles.css?v=44" />
   </head>
   <body>
     <main id="app">
@@ -107,6 +107,20 @@
                     </div>
                   </div>
                 </div>
+
+                <div id="mixingStage" class="mixing-stage" hidden>
+                  <div class="mixing-container">
+                    <img id="mixingBowlImg" class="mixing-bowl" alt="보울" draggable="false" />
+                    <img id="mixingContentImg" class="mixing-content" alt="섞기" draggable="false" />
+                  </div>
+                  <div class="mixing-guide">
+                    <p id="mixingGuideText" class="guide-script">동구리오 타돗테모 츠키마센</p>
+                    <div class="score-display">
+                      <span>정확도</span>
+                      <span id="mixingScore" class="score-value">100%</span>
+                    </div>
+                  </div>
+                </div>
                 <div id="blowFx" class="blow-fx" hidden aria-hidden="true">
                   <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
                 </div>
@@ -173,6 +187,6 @@
 
       <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
     </main>
-    <script type="module" src="./src/main.js?v=43"></script>
+    <script type="module" src="./src/main.js?v=44"></script>
   </body>
 </html>

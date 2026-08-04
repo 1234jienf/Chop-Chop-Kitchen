@@ -742,11 +742,17 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   position:absolute;
   z-index:4;
   left:50%;
+  /* moved up by 10% as requested (screen basis) */
   top:40%;
-  transform:translate(-50%,-50%);
-  /* 유리창 크기는 이전 오븐 스테이지 기준보다 조금 더 크게 설정 */
-  width:min(90%,520px);
-  aspect-ratio:1.05;
+  /* base width (used to compute explicit width/height) */
+  --oven-base-width: min(90%, 684px);
+  /* increase by 20% over previous 400% / 180% -> now 480% / 216% */
+  --oven-scale-x: 4.8; /* width multiplier (480%) */
+  --oven-scale-y: 2.16; /* height multiplier (216%) */
+  /* set explicit width/height so children are not distorted by transform scale */
+  width: calc(var(--oven-base-width) * var(--oven-scale-x));
+  height: calc(var(--oven-base-width) * var(--oven-scale-y));
+  transform: translate(-50%,-50%);
   pointer-events:none;
   overflow:hidden; /* 오븐 안쪽만 보이도록 자르기 */
 }
@@ -754,78 +760,65 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 .oven-contents{
   position:absolute;
   left:50%;
-  bottom:20%; /* moved lower so food sits closer to oven floor */
+  /* position anchored to bottom of glass so food sits on the oven floor */
+  bottom:8%;
   transform:translateX(-50%);
-  width:40vw;
-  max-width:70%;
+  /* glass 기준으로 크기 조정 */
+  width:30%;
   display:flex;
-  flex-wrap:nowrap;
+  flex-wrap:wrap;
   justify-content:center;
   align-items:flex-end;
   gap:6px;
   z-index:3; /* behind oven light */
-  overflow:visible; /* ensure child images can extend inside without being locally clipped */
 }
-.oven-contents::before,
-.oven-contents::after{
+.oven-contents::before{
+  /* removed yellow/bright sparkle per request */
   display:none;
 }
-
-/* Screen-fixed oven contents: positioned relative to viewport (screen) */
-.oven-contents-screen{
-  position:fixed;
-  left:50%;
-  bottom:7%; /* moved to 7% as requested */
-  top:auto; /* explicitly use bottom, not top */
-  transform:translateX(-50%);
-  width:40vw;
-  max-width:70%;
-  height:auto;
-  display:flex;
-  flex-wrap:nowrap;
-  justify-content:center;
-  align-items:flex-end;
-  gap:6px;
-  z-index:30; /* above most scene elements */
+.oven-contents::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,0.35);
+  z-index:2;
   pointer-events:none;
+  border-radius:24px;
 }
-
-.oven-contents-screen .oven-item{ margin:0; display:flex; justify-content:center; align-items:flex-end; }
-.oven-contents-screen .oven-item img{ margin:0 auto; display:block; }
 .oven-item{
   display:inline-block;
   position:relative;
   width:100%;
-  max-width:none;
-  transform: none;
-  transform-origin:50% 100%;
-  overflow:visible;
+  max-width:220px;
 }
-
 .oven-item img.oven-ingredient{
-  width:auto;
-  max-width:100%;
-  max-height:60vh; /* prevent the image escaping the oven vertically */
+  width:100%;
+  height:auto;
   display:block;
 }
 .oven-item::after{
-  display:none;
+  content:'';
+  position:absolute;
+  left:0; right:0; top:0; bottom:0;
+  background:rgba(0,0,0,0.3); /* 30% 검은색 가림막 */
+  z-index:4;
+  pointer-events:none;
+  border-radius:8px;
 }
 .oven-light{
   position:absolute;
   left:50%;
-  top:35%;
-  transform:translate(-50%,0) scale(3); /* 300% 크기 */
+  /* attach to top edge of oven-stage (glass top) */
+  top:0;
+  transform:translate(-50%,0) scale(1);
   transform-origin:50% 0; /* scale expands downward + sideways only */
   z-index:12; /* in front of contents and food */
+  /* size relative to oven-stage (percentage) */
   width:30%;
   max-width:none;
   pointer-events:none;
-  opacity:0;
-  visibility:hidden;
-  display:none; /* completely hide the light image */
+  opacity:.95;
   transition:opacity .12s ease, transform .12s ease;
-  clip-path: inset(20% 0 0 0); /* 윗부분 숨기기 */
 }
 .oven-hint{
   position:absolute;
@@ -850,6 +843,85 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   50% { opacity: 1; transform: scale(1.04); }
 }
 .oven-light.is-on{opacity:1; filter:drop-shadow(0 8px 14px #f40a); animation: ovenPulse 1.8s ease-in-out infinite;}
+
+/* Mixing stage */
+.mixing-stage{
+  position:absolute;
+  left:50%;
+  top:52%;
+  width:min(72%,560px);
+  aspect-ratio:1.15;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  z-index:6;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+.mixing-stage[hidden]{display:none!important}
+.mixing-container{
+  position:relative;
+  width:100%;
+  height:70%;
+}
+.mixing-bowl{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:62%;
+  height:auto;
+  transform:translate(-50%,-50%);
+  transform-origin:center center;
+  z-index:2;
+  filter:drop-shadow(0 12px 16px rgba(0,0,0,.35));
+}
+.mixing-content{
+  position:absolute;
+  left:50%;
+  top:62%;
+  width:34%;
+  height:auto;
+  transform:translate(-50%,-50%);
+  transform-origin:center center;
+  z-index:3;
+  filter:drop-shadow(0 10px 12px rgba(0,0,0,.28));
+}
+.mixing-guide{
+  position:relative;
+  width:100%;
+  text-align:center;
+  z-index:4;
+  margin-top:12px;
+}
+.guide-script{
+  margin:0 0 10px;
+  color:#fff7e8;
+  font-size:1.05rem;
+  font-weight:800;
+  text-shadow:0 0 10px rgba(0,0,0,.7);
+  pointer-events:none;
+}
+.score-display{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  color:#e7d4bc;
+  font-size:.78rem;
+  font-weight:700;
+  pointer-events:none;
+}
+.score-value{
+  color:#fff;
+  font-weight:900;
+}
+.counter-scene.is-mixing .station-icon,
+.counter-scene.is-mixing .emoji-hands{
+  display:none;
+}
+.counter-scene.is-mixing .kitchen-bg-img{
+  transform:scale(1.04);
+  transform-origin:center 55%;
+}
 
 /* 다이얼 박스와 바늘 스타일 */
 #ovenDial{

@@ -145,7 +145,7 @@ export const RECIPE_CATALOG = [
     steps: [
       step('cutting', ['tomatoes'], { title: '아보카도 다지기', targetPattern: '찹찹찹찹', hint: '짧은 피크를 빠르게 반복하세요.' }),
       step('cutting', ['onion'], { targetPattern: '사각사각', hint: '중간 속도로 반복하세요.' }),
-      step('mixing', ['tomatoes'], { title: '재료 으깨 섞기', targetPattern: '보글보글', hint: '짧은 소리를 불규칙하게 반복하세요.' }),
+      step('mixing', ['과카몰리_보울안'], { title: '재료 으깨 섞기', targetPattern: '보글보글', hint: '짧은 소리를 불규칙하게 반복하세요.' }),
     ],
   },
   {
@@ -159,7 +159,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['mozzarella'], { targetPattern: '찹찹찹찹', hint: '모짜렐라도 같은 리듬으로.' }),
       step('roasting', ['baguette'], { title: '빵칩 굽기', targetPattern: '치이이익', hint: '지속음으로 굽기.' }),
       step('boiling', ['sauce'], { title: '발사믹 리덕션', targetPattern: '후~~~~', hint: '길게 불어 화력을 낮추세요.' }),
-      step('mixing', ['tomatoes'], { title: '재료 섞기', targetPattern: '보글보글', hint: '짧게 섞는 소리.' }),
+      step('mixing', ['타르타르_보울안'], { title: '재료 섞기', targetPattern: '보글보글', hint: '짧게 섞는 소리.' }),
       step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '스으-', hint: '약하게 붓듯이.' }),
     ],
   },
@@ -185,7 +185,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['potato'], { title: '당근 썰기', targetPattern: '사각사각', hint: '채썰기 리듬.' }),
       step('cutting', ['onion'], { title: '샐러리 썰기', targetPattern: '탁·탁·탁', hint: '일정하게.' }),
       step('boiling', ['potato'], { title: '수프 끓이기', targetPattern: '보글보글', hint: '보글보글 유지.' }),
-      step('mixing', ['potato'], { title: '재료 섞기', targetPattern: '후루룩', hint: '빠르게 2~3회.' }),
+      step('mixing', ['미네스트로네_보울안'], { title: '재료 섞기', targetPattern: '후루룩', hint: '빠르게 2~3회.' }),
     ],
   },
   {
@@ -254,13 +254,13 @@ function toCourse(recipe) {
   };
 }
 
-/** 시작 추천: 브루스케타 + 클램 차우더 + 스테이크 + 애플 타르트 */
+/** 시작 추천: 과카몰리 + 미네스트로네 + 스테이크 + 애플 타르트 (mixing 포함) */
 export const STARTER_MENU = {
   id: 'starter',
   name: '시작 추천 4코스',
   courses: [
-    toCourse(byKo('브루스케타')),
-    toCourse(byKo('클램 차우더')),
+    toCourse(byKo('과카몰리')),
+    toCourse(byKo('미네스트로네')),
     toCourse(byKo('스테이크 플레이트')),
     toCourse(byKo('애플 타르트')),
   ],
