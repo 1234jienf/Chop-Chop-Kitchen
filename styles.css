@@ -737,19 +737,31 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   transform-origin:center 62%;
 }
 
-/* Boil: pot on burner — 불 위치는 굽기(.fire-img)와 동일 */
+/* Boil: pot on burner — 불은 버너(냄비 아래)에, 화면 하단으로 빠지지 않게 */
 .boil-stage{
   --bowl-x: 50%;
   position:absolute;
   z-index:4;
   left:50%;
-  top:58%;
+  top:56%;
   transform:translate(-50%,-50%);
-  width:min(68%,520px);
+  width:min(58%,420px);
   aspect-ratio:1.15;
   pointer-events:none;
+  overflow:hidden;
 }
 .boil-stage[hidden]{display:none!important}
+/* 굽기 불과 비슷한 높이(버너) · 냄비 바닥 밑 */
+.boil-stage .fire-img{
+  left:50%;
+  bottom:18%;
+  width:52%;
+  z-index:1;
+  transform-origin:center bottom;
+}
+.boil-stage .fire-img[data-band="low"]{--fire-scale:0.82}
+.boil-stage .fire-img[data-band="mid"]{--fire-scale:0.95}
+.boil-stage .fire-img[data-band="high"]{--fire-scale:1.1}
 .pot-img{
   position:absolute;
   inset:0;
