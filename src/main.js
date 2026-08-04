@@ -5,8 +5,18 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=44';
-import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js?v=44';
+} from './data.js?v=55';
+import {
+  calculateResult,
+  createGameState,
+  getCurrent,
+  getIngredientCuts,
+  getPlayer,
+  getSteps,
+  rememberIngredientCuts,
+  startNextDay,
+  submitStep,
+} from './state.js?v=55';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -23,7 +33,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js?v=45';
+} from './cutplay.js?v=51';
 import {
   bandLabel,
   createRoastHeat,
@@ -32,7 +42,20 @@ import {
   roastAccuracy,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js?v=44';
+} from './roastheat.js?v=51';
+import {
+  createMixingSession,
+  DEFAULT_SCRIPT,
+  getBowlPosition,
+  getMixingOffset,
+  getMixingRotation,
+  getMixingScore,
+  getMixingState,
+  getBowlRotation,
+  startMixing,
+  stopMixing,
+  tickMixing,
+} from './mixing.js?v=51';
 import {
   createFinishSession,
   detectPitch,
@@ -44,9 +67,9 @@ import {
   reachTimeLeft,
   stopFinishSession,
   tickFinish,
-} from './sprinklepourplay.js?v=44';
-import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=44';
-import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=2';
+} from './sprinklepourplay.js?v=51';
+import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=51';
+import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -137,6 +160,15 @@ let peakArmed = false;
 let roastArmed = false;
 let finishArmed = false;
 let boilArmed = false;
+let ovenArmed = false;
+let ovenStartTimer = null;
+let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
+let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
+let ovenAcceptWindow = 1.2; // 허용 오차(초)
+let ovenElapsed = 0;
+let ovenStopped = false;
+let ovenUserStopAt = null; // 사용자가 띵을 외친 시각(초)
+let ovenLightOn = false;
 let lastFrameTs = 0;
 let speechRec = null;
 let speechWanted = false;
@@ -154,10 +186,16 @@ let boilLevel = -1;
 let boilFireLock = null;
 const BOIL_NEED_SEC = 9;
 
+let mixingArmed = false;
+const mixingSession = createMixingSession();
+let mixingSpeechRec = null;
+let mixingSpeechWanted = false;
+
 let audioContext = null;
 let analyser = null;
 let animationId = null;
 let lastActivitySentAt = 0;
+let lastTimelineScrollStep = -1;
 
 const cutSession = createCutSession({
   onStatus: (msg) => { $('#micStatus').textContent = msg; },
@@ -169,6 +207,7 @@ const cutSession = createCutSession({
 async function finishCutStep(accuracy) {
   stopLiveMic();
   const current = getCurrent(state);
+  if (!isMixingStep(current)) hideMixingStage();
   const id = primaryIngredient(current);
   const cuts = cutSession.actualCuts?.length || cutSession.marks?.length || 3;
   rememberIngredientCuts(state, id, cuts);
@@ -210,6 +249,8 @@ function kitchenBackgroundFor(stepData) {
   if (stepData?.action === 'putting' || stepData?.action === 'sprinkling') return '주방_접시.png';
   if (stepData?.action === 'cutting') return '주방_배경.png';
   if (stepData?.action === 'roasting') return '주방_끓이기.png';
+  if (stepData?.action === 'mixing') return '주방_배경.png';
+  if (stepData?.action === 'oven') return '주방_오븐닫_2.png';
   return '주방_끓이기.png';
 }
 
@@ -296,104 +337,16 @@ function isRoastingStep(stepData) {
   return stepData?.action === 'roasting';
 }
 
-const COURSE_DISH_ASSET = {
-  '브루스케타': ['에피타이저', '브루스케타.png'],
-  '카프레제 타르타르': ['에피타이저', '카프레제타르타르.png'],
-  '카프레제 샐러드': ['에피타이저', '카프레제타르타르.png'],
-  '크림 오브 머쉬룸': ['스타터', '크림오브머쉬룸.png'],
-  '애플 타르트': ['디저트', '애플타르트.png'],
-  '크림 브륄레': ['디저트', '크림브륄레.png'],
-  '초콜릿 라바케이크': ['디저트', '초콜릿라바케이크.png'],
-  '구운 바나나 파르페': ['디저트', '애플타르트.png'],
-};
-
-function hideFinishStage() {
-  const stage = $('#finishStage');
-  if (stage) stage.hidden = true;
-  $('.counter-scene')?.classList.remove('is-finishing');
-  stopFinishSession(finishSession);
-  finishArmed = false;
-  finishSubmitted = false;
-}
-
-function renderFinishStage(stepData) {
-  const stage = $('#finishStage');
-  const dish = $('#finishDish');
-  const tool = $('#finishTool');
-  const stream = $('#finishStream');
-  if (!stage || !dish || !tool || !stream) return;
-
-  const dishAsset = COURSE_DISH_ASSET[stepData.course?.name] || ['에피타이저', '브루스케타.png'];
-  const finishAsset = stepData.sprinklePourAsset || (stepData.action === 'sprinkling' ? '파슬리' : '올리브');
-  stage.hidden = false;
-  $('.counter-scene')?.classList.add('is-finishing');
-  dish.src = assetUrl(`./src/assets/${dishAsset[0]}/${dishAsset[1]}`);
-  tool.src = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
-  tool.dataset.idle = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
-  tool.dataset.pour = assetUrl(`./src/assets/재료/${finishAsset}_pour.png`);
-  stream.dataset.kind = stepData.sprinklePourKind || 'liquid';
-  stream.innerHTML = Array.from({ length: 26 }, (_, i) => `<i style="--i:${i};--drift:${((i * 37) % 25) - 12}px"></i>`).join('');
-  resetFinishSession(finishSession, stepData);
-  finishArmed = true;
-  finishSubmitted = false;
-  syncFinishUi();
-  $('#micStatus').textContent = '마이크를 켜고 목표 음정까지 소리를 올려보세요.';
-  $('#stepHint').textContent = `${finishSession.targetNotes.join(' → ')} · 각 음을 10초 안에 찾아 2초간 유지하세요.`;
-}
-
-function syncFinishUi() {
-  const percent = holdPercent(finishSession);
-  const inTune = finishSession.pitchHz && Math.abs(finishSession.cents) <= finishSession.toleranceCents;
-  const showPouring = finishSession.isPouring;
-  $('#pitchNeedle').style.bottom = `${pitchPercent(finishSession)}%`;
-  $('#holdFill').style.width = `${percent}%`;
-  $('#holdLabel').textContent = `${finishSession.hold.toFixed(1)} / ${finishSession.holdSeconds.toFixed(1)}초`;
-  const timeLeft = reachTimeLeft(finishSession);
-  const timer = $('#reachTimer');
-  const targetStep = finishSession.targetPitches.length > 1
-    ? `${finishSession.targetIndex + 1}/${finishSession.targetPitches.length}`
-    : '목표';
-  const targetNote = finishSession.targetNotes[finishSession.targetIndex] || `${Math.round(finishSession.targetHz)}Hz`;
-  if (finishSession.reachedAt != null) {
-    timer.textContent = `${targetStep} ${targetNote} · 도달 ${finishSession.reachedAt.toFixed(1)}초 · 예상 ${finishAccuracy(finishSession)}점`;
-    timer.classList.remove('is-late');
-  } else if (timeLeft > 0) {
-    timer.textContent = `${targetStep} ${targetNote} · 도달까지 ${timeLeft.toFixed(1)}초`;
-    timer.classList.remove('is-late');
-  } else {
-    timer.textContent = `${targetStep} ${targetNote} · 제한시간 초과`;
-    timer.classList.add('is-late');
-  }
-  $('#finishStage').classList.toggle('is-pouring', Boolean(showPouring));
-  $('#finishTool').src = showPouring ? $('#finishTool').dataset.pour : $('#finishTool').dataset.idle;
-  $('#pitchLabel').textContent = !finishSession.pitchHz
-    ? `${targetStep} ${targetNote}`
-    : inTune ? `${targetNote} 좋아요!`
-      : finishSession.cents < 0 ? `${targetNote} · 더 높게!` : `${targetNote} · 더 낮게!`;
-}
-
-async function playFinishTestEffect(accuracy) {
-  const stage = $('#finishStage');
-  const tool = $('#finishTool');
-  if (!finishArmed || !stage || !tool) return false;
-
-  $('#successBtn').disabled = true;
-  $('#missBtn').disabled = true;
-  stage.classList.add('is-pouring');
-  stage.classList.toggle('is-test-miss', accuracy < 60);
-  tool.src = tool.dataset.pour;
-  $('#holdFill').style.width = accuracy < 60 ? '32%' : '100%';
-  $('#holdLabel').textContent = accuracy < 60 ? '음정이 흔들렸어요' : '효과 미리보기';
-  $('#reachTimer').textContent = accuracy < 60 ? '실수 입력 · 낮은 점수' : '성공 입력 · 높은 점수';
-  $('#micStatus').textContent = accuracy < 60 ? '조금 빗나갔지만 마무리했어요.' : '완벽하게 뿌렸어요!';
-  await new Promise(resolve => setTimeout(resolve, accuracy < 60 ? 850 : 1100));
-  $('#successBtn').disabled = false;
-  $('#missBtn').disabled = false;
-  return true;
+function isOvenStep(stepData) {
+  return stepData?.action === 'oven';
 }
 
 function isBoilingStep(stepData) {
   return stepData?.action === 'boiling';
+}
+
+function isMixingStep(stepData) {
+  return stepData?.action === 'mixing';
 }
 
 /** 바게트 굽기: 단면(0) → 굽1 → 굽2 → 굽3(최종) */
@@ -535,6 +488,105 @@ function syncHeatUi() {
   }
 }
 
+const COURSE_DISH_ASSET = {
+  '브루스케타': ['에피타이저', '브루스케타.png'],
+  '카프레제 타르타르': ['에피타이저', '카프레제타르타르.png'],
+  '카프레제 샐러드': ['에피타이저', '카프레제타르타르.png'],
+  '크림 오브 머쉬룸': ['스타터', '크림오브머쉬룸.png'],
+  '애플 타르트': ['디저트', '애플타르트.png'],
+  '크림 브륄레': ['디저트', '크림브륄레.png'],
+  '초콜릿 라바케이크': ['디저트', '초콜릿라바케이크.png'],
+  '구운 바나나 파르페': ['디저트', '애플타르트.png'],
+};
+
+function hideFinishStage() {
+  const stage = $('#finishStage');
+  if (stage) {
+    stage.hidden = true;
+    stage.classList.remove('is-pouring', 'is-test-miss');
+  }
+  $('.counter-scene')?.classList.remove('is-finishing');
+  stopFinishSession(finishSession);
+  finishArmed = false;
+  finishSubmitted = false;
+}
+
+function renderFinishStage(stepData) {
+  const stage = $('#finishStage');
+  const dish = $('#finishDish');
+  const tool = $('#finishTool');
+  const stream = $('#finishStream');
+  if (!stage || !dish || !tool || !stream) return;
+
+  const dishAsset = COURSE_DISH_ASSET[stepData.course?.name] || ['에피타이저', '브루스케타.png'];
+  const finishAsset = stepData.sprinklePourAsset || (stepData.action === 'sprinkling' ? '파슬리' : '올리브');
+  stage.hidden = false;
+  $('.counter-scene')?.classList.add('is-finishing');
+  dish.src = assetUrl(`./src/assets/${dishAsset[0]}/${dishAsset[1]}`);
+  tool.src = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
+  tool.dataset.idle = assetUrl(`./src/assets/재료/${finishAsset}_idle.png`);
+  tool.dataset.pour = assetUrl(`./src/assets/재료/${finishAsset}_pour.png`);
+  stream.dataset.kind = stepData.sprinklePourKind || 'liquid';
+  stream.innerHTML = Array.from({ length: 26 }, (_, i) => `<i style="--i:${i};--drift:${((i * 37) % 25) - 12}px"></i>`).join('');
+  resetFinishSession(finishSession, stepData);
+  finishArmed = true;
+  finishSubmitted = false;
+  syncFinishUi();
+  $('#micStatus').textContent = '마이크를 켜고 목표 음정까지 소리를 올려보세요.';
+  $('#stepHint').textContent = `${finishSession.targetNotes.join(' → ')} · 각 음을 10초 안에 찾아 2초간 유지하세요.`;
+}
+
+function syncFinishUi() {
+  const percent = holdPercent(finishSession);
+  const inTune = finishSession.pitchHz && Math.abs(finishSession.cents) <= finishSession.toleranceCents;
+  const showPouring = finishSession.isPouring;
+  $('#pitchNeedle').style.bottom = `${pitchPercent(finishSession)}%`;
+  $('#holdFill').style.width = `${percent}%`;
+  $('#holdLabel').textContent = `${finishSession.hold.toFixed(1)} / ${finishSession.holdSeconds.toFixed(1)}초`;
+  const timeLeft = reachTimeLeft(finishSession);
+  const timer = $('#reachTimer');
+  const targetStep = finishSession.targetPitches.length > 1
+    ? `${finishSession.targetIndex + 1}/${finishSession.targetPitches.length}`
+    : '목표';
+  const targetNote = finishSession.targetNotes[finishSession.targetIndex] || `${Math.round(finishSession.targetHz)}Hz`;
+  if (finishSession.reachedAt != null) {
+    timer.textContent = `${targetStep} ${targetNote} · 도달 ${finishSession.reachedAt.toFixed(1)}초 · 예상 ${finishAccuracy(finishSession)}점`;
+    timer.classList.remove('is-late');
+  } else if (timeLeft > 0) {
+    timer.textContent = `${targetStep} ${targetNote} · 도달까지 ${timeLeft.toFixed(1)}초`;
+    timer.classList.remove('is-late');
+  } else {
+    timer.textContent = `${targetStep} ${targetNote} · 제한시간 초과`;
+    timer.classList.add('is-late');
+  }
+  $('#finishStage').classList.toggle('is-pouring', Boolean(showPouring));
+  $('#finishTool').src = showPouring ? $('#finishTool').dataset.pour : $('#finishTool').dataset.idle;
+  $('#pitchLabel').textContent = !finishSession.pitchHz
+    ? `${targetStep} ${targetNote}`
+    : inTune ? `${targetNote} 좋아요!`
+      : finishSession.cents < 0 ? `${targetNote} · 더 높게!` : `${targetNote} · 더 낮게!`;
+}
+
+async function playFinishTestEffect(accuracy) {
+  const stage = $('#finishStage');
+  const tool = $('#finishTool');
+  if (!finishArmed || !stage || !tool) return false;
+
+  $('#successBtn').disabled = true;
+  $('#missBtn').disabled = true;
+  stage.classList.add('is-pouring');
+  stage.classList.toggle('is-test-miss', accuracy < 60);
+  tool.src = tool.dataset.pour;
+  $('#holdFill').style.width = accuracy < 60 ? '32%' : '100%';
+  $('#holdLabel').textContent = accuracy < 60 ? '음정이 흔들렸어요' : '효과 미리보기';
+  $('#reachTimer').textContent = accuracy < 60 ? '실수 입력 · 낮은 점수' : '성공 입력 · 높은 점수';
+  $('#micStatus').textContent = accuracy < 60 ? '조금 빗나갔지만 마무리했어요.' : '완벽하게 뿌렸어요!';
+  await new Promise(resolve => setTimeout(resolve, accuracy < 60 ? 850 : 1100));
+  $('#successBtn').disabled = false;
+  $('#missBtn').disabled = false;
+  return true;
+}
+
 function hideRoastStage() {
   const stage = $('#roastStage');
   if (stage) stage.hidden = true;
@@ -589,6 +641,380 @@ function syncBoilFx() {
   stage.classList.toggle('boil-hot', level === 2);
   applyBoilFireSprite(band);
   syncFireTestButtons(band);
+}
+
+function hideMixingStage() {
+  const stage = $('#mixingStage');
+  if (stage) stage.hidden = true;
+  $('.counter-scene')?.classList.remove('is-mixing');
+
+  // mixing 세션에서 로드한 이미지 및 콘텐츠 정리
+
+  const bowl = $('#mixingBowlImg');
+  if (bowl) bowl.src = '';
+
+  const mixingImg = $('#mixingContentImg');
+  if (mixingImg) mixingImg.src = '';
+
+  const guideText = $('#mixingGuideText');
+  if (guideText) guideText.textContent = '';
+
+  const scoreDisplay = $('#mixingScore');
+  if (scoreDisplay) scoreDisplay.textContent = '';
+
+  try { stopMixingSpeech(); } catch (_) {}
+  stopMixing(mixingSession);
+  mixingArmed = false;
+}
+
+/** 오븐 스테이지 UI/로직 추가 */
+function syncOvenUi() {
+  const dial = $('#ovenDial');
+  const light = $('#ovenLightImg');
+  const hint = $('#ovenHint');
+
+  // 다이얼 이미지(배경)와 바늘(needle)을 설정하고 회전시키기
+  if (dial) {
+    // background: 다이얼 이미지 (사용자 추가: src/assets/오븐/다이얼.png)
+    dial.style.backgroundImage = `url(${assetUrl('./src/assets/오븐/다이얼.png')})`;
+    dial.style.backgroundSize = 'contain';
+    dial.style.backgroundRepeat = 'no-repeat';
+    dial.style.backgroundPosition = 'center';
+    // 바늘 엘리먼트가 없으면 생성
+    let needle = dial.querySelector('.oven-needle');
+    if (!needle) {
+      needle = document.createElement('div');
+      needle.className = 'oven-needle';
+      dial.appendChild(needle);
+    }
+    // 회전: ovenVisualDuration 동안 1바퀴 (시작은 12시)
+    const frac = ovenVisualDuration > 0 ? Math.min(1, ovenElapsed / ovenVisualDuration) : 0;
+    const deg = frac * 360; // 0deg = 12시 시작, 시계 방향 회전
+    needle.style.transform = `translateX(-50%) rotate(${deg}deg)`;
+  }
+
+  if (light) {
+    // 깜빡임은 클래스 토글로 처리
+    light.classList.toggle('is-on', Boolean(ovenLightOn));
+  }
+  if (hint) {
+    if (ovenTargetTime != null) {
+      const untilTarget = ovenTargetTime - ovenElapsed;
+      const totalLeft = Math.max(0, ovenVisualDuration - ovenElapsed);
+      hint.classList.toggle('is-now', untilTarget <= 0 && untilTarget >= -ovenAcceptWindow);
+      hint.classList.toggle('is-late', untilTarget < -ovenAcceptWindow);
+      hint.textContent = untilTarget > 0
+        ? `${untilTarget.toFixed(1)}초 후에 “띵” 소리를 내주세요 · 제한시간 ${totalLeft.toFixed(1)}초`
+        : untilTarget >= -ovenAcceptWindow
+          ? `지금 “띵”! · 허용시간 ${Math.max(0, ovenAcceptWindow + untilTarget).toFixed(1)}초`
+          : `목표 시간을 지났어요 · 남은 제한시간 ${totalLeft.toFixed(1)}초`;
+      hint.hidden = false;
+    } else {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
+  }
+}
+
+function renderOvenStage(stepData) {
+  const stage = $('#ovenStage');
+  if (!stage) return;
+  hideRoastStage();
+  hideBoilStage();
+  hideOvenStage();
+  stage.hidden = false;
+  const hint = $('#ovenHint');
+  if (hint) hint.hidden = false;
+  $('.counter-scene')?.classList.add('is-oven');
+
+  // 오븐 내부에 재료 이미지를 표시 (오븐 전용 파일명 우선)
+  try {
+    // Use a screen-fixed container so ingredients are positioned relative to the viewport,
+    // not the transformed .oven-stage. Create it if missing.
+    let screenContents = $('#ovenContentsScreen');
+    if (!screenContents) {
+      screenContents = document.createElement('div');
+      screenContents.id = 'ovenContentsScreen';
+      screenContents.className = 'oven-contents-screen';
+      document.body.appendChild(screenContents);
+    }
+    // keep the original in-stage container empty to avoid duplicates
+    const inStage = $('#ovenContents');
+    if (inStage) inStage.innerHTML = '';
+
+    const files = stepData?.ovenFiles || [];
+    const ingIds = stepData?.ingredients || [];
+    screenContents.innerHTML = '';
+    files.forEach((fileName, idx) => {
+      const img = document.createElement('img');
+      img.className = 'oven-ingredient';
+      img.alt = ingIds[idx] || fileName;
+      // 시도 순서: ./src/assets/오븐/<fileName> -> ./src/assets/재료/<fileName> -> ./src/assets/오븐/<basename>
+      const tryPaths = [
+        `./src/assets/오븐/${fileName}`,
+        `./src/assets/재료/${fileName}`,
+        `./src/assets/오븐/${fileName.replace(/^.*[\\\\/]/, '')}`,
+      ];
+      let attempt = 0;
+      const tryNext = () => {
+        if (attempt >= tryPaths.length) return;
+        const p = tryPaths[attempt++];
+        img.onerror = () => tryNext();
+        img.src = assetUrl(p);
+      };
+      tryNext();
+      img.style.transformOrigin = '50% 50%';
+
+      const item = document.createElement('div');
+      item.className = 'oven-item';
+      item.style.position = 'relative';
+      item.style.display = 'inline-block';
+      item.style.zIndex = '30'; // above many scene elements when screen-fixed
+      const horiz = (idx - (files.length-1)/2) * 8;
+      // size the ingredient to 0.9 scale as requested
+      const scaleVal = 0.9;
+      item.style.transform = `translateX(${horiz}%) scale(${scaleVal})`;
+      item.style.transformOrigin = '50% 100%';
+      item.appendChild(img);
+      screenContents.appendChild(item);
+    });
+  } catch (e) { console.error('oven render error', e); }
+
+  // 레시피별 제한시간을 사용하고, 없으면 기본 25초로 작동
+  ovenVisualDuration = (typeof stepData?.ovenVisualDuration === 'number')
+    ? stepData.ovenVisualDuration
+    : 25;
+  ovenAcceptWindow = (typeof stepData?.ovenAcceptWindow === 'number') ? stepData.ovenAcceptWindow : ovenAcceptWindow;
+
+  ovenElapsed = 0;
+  ovenStopped = false;
+  ovenUserStopAt = null;
+  ovenLightOn = false;
+  // start delayed: set ovenArmed after 2 seconds regardless of mic state
+  ovenArmed = false;
+  if (ovenStartTimer) { clearTimeout(ovenStartTimer); ovenStartTimer = null; }
+  ovenStartTimer = setTimeout(() => {
+    ovenArmed = true;
+    // ensure animation loop runs when oven actually starts
+    if (!animationId) {
+      lastFrameTs = 0;
+      animationId = requestAnimationFrame(tickLiveMic);
+    }
+    $('#micStatus').textContent = `오븐 가동 중 · ${ovenVisualDuration}초 동안 유지하세요`;
+  }, 2000);
+
+  // 오븐 불빛 이미지는 로드하지 않음 (불빛 끔)
+  const light = $('#ovenLightImg');
+  if (light) {
+    light.src = '';
+    light.classList.remove('is-on');
+  }
+
+  // 목표 시점(n_b)을 설정: stepData에 명시되어 있지 않으면 5~15 사이 정수로 선택
+  ovenTargetTime = (typeof stepData?.ovenTargetTime === 'number')
+    ? stepData.ovenTargetTime
+    : (Math.floor(Math.random() * 11) + 5); // 5..15 (정수)
+
+  // 다이얼 상에 목표 가이드(타겟 마커) 표시
+  const dial = $('#ovenDial');
+  if (dial) {
+    let target = dial.querySelector('.oven-target');
+    if (!target) {
+      target = document.createElement('div');
+      target.className = 'oven-target';
+      dial.appendChild(target);
+    }
+    const angle = -90 + (ovenTargetTime / Math.max(1, ovenVisualDuration)) * 360;
+    // transform rotates the marker to angle then pushes it outward
+    target.style.transform = `rotate(${angle}deg) translateY(-52%) translateX(-50%)`;
+    target.style.display = 'block';
+  }
+
+  syncOvenUi();
+  $('#micStatus').textContent = `오븐 가동 중 · ${ovenVisualDuration}초 동안 유지하세요`;
+  $('#stationIcon').hidden = true;
+  if (!animationId) {
+    lastFrameTs = 0;
+    animationId = requestAnimationFrame(tickLiveMic);
+  }
+}
+
+function hideOvenStage() {
+  const stage = $('#ovenStage');
+  if (stage) stage.hidden = true;
+  $('.counter-scene')?.classList.remove('is-oven');
+  // clear oven contents (both in-stage and screen-fixed)
+  const contents = $('#ovenContents');
+  if (contents) contents.innerHTML = '';
+  const screenContents = $('#ovenContentsScreen');
+  if (screenContents) { screenContents.innerHTML = ''; screenContents.remove(); }
+  // remove dial needle & target & background
+  const dial = $('#ovenDial');
+  if (dial) {
+    dial.style.backgroundImage = '';
+    const needle = dial.querySelector('.oven-needle');
+    if (needle) dial.removeChild(needle);
+    const target = dial.querySelector('.oven-target');
+    if (target) dial.removeChild(target);
+  }
+  // clear light
+  const light = $('#ovenLightImg');
+  if (light) { light.src = ''; light.classList.remove('is-on'); }
+  const hint = $('#ovenHint');
+  if (hint) {
+    hint.hidden = true;
+    hint.textContent = '';
+    hint.classList.remove('is-now', 'is-late');
+  }
+
+  try { stopOvenSpeech(); } catch (_) {}
+
+  if (ovenStartTimer) { clearTimeout(ovenStartTimer); ovenStartTimer = null; }
+
+  ovenArmed = false;
+  ovenElapsed = 0;
+  ovenVisualDuration = 0;
+  ovenTargetTime = null;
+  ovenUserStopAt = null;
+  ovenStopped = false;
+  ovenLightOn = false;
+}
+
+function startOvenSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    $('#micStatus').textContent = '음성인식 미지원 · 키 입력으로 진행 (Chrome 권장)';
+    return false;
+  }
+
+  stopTakSpeech();
+  speechWanted = true;
+  speechRec = new SR();
+  speechRec.lang = 'ko-KR';
+  speechRec.continuous = true;
+  speechRec.interimResults = true;
+  speechRec.maxAlternatives = 5;
+
+  speechRec.onresult = (event) => {
+    if (!ovenArmed) return;
+    let chunk = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      for (let a = 0; a < result.length; a++) {
+        chunk += ` ${result[a]?.transcript || ''}`;
+      }
+    }
+    const compact = chunk.replace(/\s+/g, '').toLowerCase();
+    if (compact.includes('띵') || compact.includes('딩') || compact.includes('ding')) {
+      ovenStopped = true;
+      ovenUserStopAt = ovenElapsed; // 기록된 시각
+      $('#micStatus').textContent = `띵 소리 감지됨 · ${ovenUserStopAt.toFixed(2)}s 기록`;
+    }
+  };
+
+  speechRec.onerror = (event) => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+  };
+
+  speechRec.onend = () => {
+    if (!speechWanted || !micOn) return;
+    try { speechRec.start(); } catch (_) {}
+  };
+
+  // 주기적 재시작
+  speechKickTimer = setInterval(() => {
+    if (!speechWanted || !speechRec || !micOn) return;
+    try { speechRec.stop(); } catch (_) {}
+  }, 3500);
+
+  try { speechRec.start(); return true; } catch (error) { $('#micStatus').textContent = `음성인식 시작 실패: ${error.message}`; return false; }
+}
+
+function stopOvenSpeech() {
+  speechWanted = false;
+  if (speechKickTimer) { clearInterval(speechKickTimer); speechKickTimer = null; }
+  if (!speechRec) return;
+  try {
+    speechRec.onend = null;
+    speechRec.onresult = null;
+    speechRec.onerror = null;
+    speechRec.stop();
+  } catch (_) {}
+  speechRec = null;
+}
+
+function stopMixingSpeech() {
+  mixingSpeechWanted = false;
+  if (!mixingSpeechRec) return;
+  try {
+    mixingSpeechRec.onend = null;
+    mixingSpeechRec.onresult = null;
+    mixingSpeechRec.onerror = null;
+    mixingSpeechRec.stop();
+  } catch (_) {}
+  mixingSpeechRec = null;
+}
+
+function startMixingSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    $('#micStatus').textContent = '음성인식 미지원 (Chrome 권장)';
+    return false;
+  }
+
+  stopMixingSpeech();
+  mixingSpeechWanted = true;
+  mixingSpeechRec = new SR();
+  mixingSpeechRec.lang = 'ko-KR';
+  mixingSpeechRec.continuous = true;
+  mixingSpeechRec.interimResults = true;
+  mixingSpeechRec.maxAlternatives = 5;
+
+  mixingSpeechRec.onresult = (event) => {
+    if (!mixingArmed) return;
+    let chunk = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      for (let a = 0; a < result.length; a++) {
+        chunk += ` ${result[a]?.transcript || ''}`;
+      }
+    }
+    chunk = chunk.trim();
+
+    // 인식된 텍스트를 기반으로 대본 일치도 계산
+    if (chunk && mixingSession.guideScript) {
+      const targetScript = mixingSession.guideScript;
+      let matchCount = 0;
+      for (let i = 0; i < Math.min(chunk.length, targetScript.length); i++) {
+        if (chunk[i] === targetScript[i]) matchCount++;
+      }
+      mixingSession.recognizedText = chunk;
+      mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / targetScript.length);
+
+      // 가이드 텍스트 색상 업데이트
+      const guideText = document.getElementById('mixingGuideText');
+      if (guideText) {
+        let html = '';
+        for (let i = 0; i < targetScript.length; i++) {
+          const matched = i < chunk.length && chunk[i] === targetScript[i];
+          const cls = matched ? 'matched' : '';
+          html += `<span class="${cls}">${targetScript[i]}</span>`;
+        }
+        guideText.innerHTML = html;
+      }
+    }
+  };
+
+  mixingSpeechRec.onerror = (event) => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+  };
+
+  mixingSpeechRec.onend = () => {
+    if (!mixingSpeechWanted || !micOn) return;
+    try { mixingSpeechRec.start(); } catch (_) {}
+  };
+
+  try { mixingSpeechRec.start(); return true; } catch (error) { return false; }
 }
 
 /** 끓이기: 물 냄비 고정 + 보글 이펙트 */
@@ -658,6 +1084,105 @@ function renderBoilStage(stepData) {
   $('#stationIcon').hidden = true;
   $('#micStatus').textContent = '마이크 켜고 「보글보글」 · 물이 끓어요';
   $('#stepHint').textContent = `목표 소리 “${stepData.targetPattern}” · ${stepData.hint || '보글보글 하면 기포가 세져요'}`;
+}
+
+/** 섞기: 보울 + 섞기 이미지 + 가이드 대본 */
+function renderMixingStage(stepData) {
+  const stage = $('#mixingStage');
+  const counterScene = $('.counter-scene');
+  if (!stage || !counterScene) return;
+
+  hideRoastStage();
+  hideBoilStage();
+  hideOvenStage();
+  stage.hidden = false;
+  counterScene.classList.add('is-mixing');
+
+  // 배경 설정
+  const kitchenBg = $('#kitchenBg');
+  if (kitchenBg) {
+    kitchenBg.src = assetUrl('./src/assets/배경/주방_배경.png');
+    kitchenBg.alt = '주방 배경';
+  }
+
+  // 가이드 스크립트 설정 (기본값: 동구리오 타돗테모 츠키마센)
+  const guideScript = stepData?.scriptText || stepData?.guideScript || DEFAULT_SCRIPT;
+  const guideLine = `"${guideScript}"을 정확히 따라하세요.`;
+
+  // 섞기 세션 초기화
+  startMixing(mixingSession, guideScript);
+
+  // 보울 이미지 (여러 경로 시도)
+  const bowl = $('#mixingBowlImg');
+  if (bowl) {
+    const tryPaths = [
+      './src/assets/조리도구/보울.png',
+      './src/assets/도구/보울.png',
+    ];
+    let attempt = 0;
+    const tryNext = () => {
+      if (attempt >= tryPaths.length) {
+        console.warn('보울 이미지 로딩 실패:', tryPaths);
+        return;
+      }
+      const path = tryPaths[attempt++];
+      bowl.onerror = tryNext;
+      bowl.src = assetUrl(path);
+    };
+    tryNext();
+    bowl.alt = '보울';
+  }
+
+  // 섞기 이미지 (data.js의 mixing 재료 파일)
+  const mixingId = stepData.mixingAsset || primaryIngredient(stepData);
+  const mixingImg = $('#mixingContentImg');
+  if (mixingImg && mixingId) {
+    mixingImg.hidden = false;
+    const fileName = mixingId.includes('.') ? mixingId : `${mixingId}.png`;
+    const tryPaths = [
+      `./src/assets/섞기/${fileName}`,
+      `./src/assets/도구/${fileName}`,
+    ];
+    let attempt = 0;
+    const tryNext = () => {
+      if (attempt >= tryPaths.length) {
+        console.warn('섞기 이미지 로딩 실패:', mixingId, tryPaths);
+        mixingImg.hidden = true;
+        return;
+      }
+      const path = tryPaths[attempt++];
+      mixingImg.onerror = tryNext;
+      mixingImg.src = assetUrl(path);
+    };
+    tryNext();
+    mixingImg.alt = mixingId;
+  }
+
+  // 가이드 텍스트 표시
+  const guideText = $('#mixingGuideText');
+  if (guideText) {
+    let html = '';
+    for (let i = 0; i < guideScript.length; i++) {
+      html += `<span>${guideScript[i]}</span>`;
+    }
+    guideText.innerHTML = html;
+  }
+
+  // 점수 표시
+  const scoreDisplay = $('#mixingScore');
+  if (scoreDisplay) {
+    scoreDisplay.textContent = '100%';
+  }
+
+  mixingArmed = true;
+  if (!animationId) {
+    lastFrameTs = 0;
+    animationId = requestAnimationFrame(tickLiveMic);
+  }
+
+  $('#micStatus').textContent = guideLine;
+  $('#stepHint').textContent = guideLine;
+  $('#stepHint').textContent = `목표 소리 "${stepData.targetPattern}" · ${stepData.hint || '대본을 잘 따라 읽으세요'}`;
 }
 
 /** 굽기: 프라이팬 + 이전 썰기 횟수만큼 단면 + 불/리듬 게이지 */
@@ -883,6 +1408,20 @@ function renderGame() {
     return `<div class="timeline-item ${status}"><i class="dot"></i><div><small>${item.course.name} · ${stationLabel(item)}${ing ? ` · ${ing}` : ''}</small><b>${item.title}</b></div><em>${state.players[index % 3]}</em></div>`;
   }).join('');
 
+  if (lastTimelineScrollStep !== state.currentStep) {
+    lastTimelineScrollStep = state.currentStep;
+    requestAnimationFrame(() => {
+      const drawer = $('#progressDrawer');
+      const activeItem = drawer?.querySelector('.timeline-item.active');
+      if (!drawer || !activeItem) return;
+      const targetTop = activeItem.offsetTop - (drawer.clientHeight - activeItem.offsetHeight) / 2;
+      drawer.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      });
+    });
+  }
+
   if (state.finished) {
     renderResult();
     showScreen('result');
@@ -895,6 +1434,7 @@ function renderGame() {
   $('#stepTitle').textContent = current.title;
   $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
   applyTurnPermissions();
+  if (!isMixingStep(current)) hideMixingStage();
   const counterScene = $('.counter-scene');
   const gameStage = $('#gameStage');
   counterScene.classList.add('has-kitchen-background');
@@ -902,9 +1442,13 @@ function renderGame() {
   counterScene.classList.toggle('is-roasting', isRoastingStep(current));
   counterScene.classList.toggle('is-finishing', isFinishStep(current));
   counterScene.classList.toggle('is-boiling', isBoilingStep(current));
+  counterScene.classList.toggle('is-oven', isOvenStep(current));
+  counterScene.classList.toggle('is-mixing', isMixingStep(current));
   gameStage?.classList.toggle('is-cutting', isCuttingStep(current));
   gameStage?.classList.toggle('is-roasting', isRoastingStep(current));
   gameStage?.classList.toggle('is-boiling', isBoilingStep(current));
+  gameStage?.classList.toggle('is-oven', isOvenStep(current));
+  gameStage?.classList.toggle('is-mixing', isMixingStep(current));
 
   const kitchenBg = $('#kitchenBg');
   kitchenBg.src = assetUrl(`./src/assets/배경/${kitchenBackgroundFor(current)}`);
@@ -921,6 +1465,7 @@ function renderGame() {
     hideFinishStage();
     hideRoastStage();
     hideBoilStage();
+    hideMixingStage();
     cutIngredient.hidden = true;
     $('#stationIcon').hidden = true;
     const passHand = $('#passHand');
@@ -973,23 +1518,24 @@ function renderGame() {
     setListening(cutSession, false);
     renderRoastStage(current);
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
-  } else if (isFinishStep(current)) {
+  } else if (isOvenStep(current)) {
     peakArmed = false;
-    hideRoastStage();
-    cutBoard.hidden = true;
+    hideBoilStage();
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
     cutBoard.innerHTML = '';
     knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
     cutIngredient.hidden = true;
-    $('#stationIcon').hidden = true;
     counterScene.classList.remove('is-zoomed');
     setListening(cutSession, false);
-    renderFinishStage(current);
-  } else {
-    hideFinishStage();
-  }
-
-  if (isBoilingStep(current)) {
-    hideFinishStage();
+    renderOvenStage(current);
+    $('#stepHint').textContent = `${current.hint || '오븐을 끄는 타이밍을 맞추세요.'}`;
+  } else if (isBoilingStep(current)) {
     peakArmed = false;
     hideRoastStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
@@ -1005,10 +1551,51 @@ function renderGame() {
     counterScene.classList.remove('is-zoomed');
     setListening(cutSession, false);
     renderBoilStage(current);
-  } else if (!isCuttingStep(current) && !isRoastingStep(current) && !isFinishStep(current)) {
+  } else if (isFinishStep(current)) {
     peakArmed = false;
     hideRoastStage();
     hideBoilStage();
+    hideMixingStage();
+    hideOvenStage();
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+    cutIngredient.hidden = true;
+    $('#stationIcon').hidden = true;
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    renderFinishStage(current);
+  } else if (isMixingStep(current)) {
+    peakArmed = false;
+    hideRoastStage();
+    hideBoilStage();
+    hideMixingStage();
+    hideOvenStage();
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+    cutIngredient.hidden = true;
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    renderMixingStage(current);
+  } else {
+    peakArmed = false;
+    hideRoastStage();
+    hideBoilStage();
+    hideMixingStage();
+    hideOvenStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
     const cutStack = $('#cutStack');
     if (cutStack) {
@@ -1170,6 +1757,10 @@ on($('#confirmTeamBtn'), 'click', () => {
   }
 });
 on($('#successBtn'), 'click', async () => {
+  // Ensure any live listeners and oven-specific state are cleaned up
+  try { stopOvenSpeech(); } catch (_) {}
+  hideOvenStage();
+  hideMixingStage();
   stopLiveMic();
   if (isCuttingStep(getCurrent(state)) && !cutSession.finished && !cutSession.animating) {
     await runCannedCut();
@@ -1179,6 +1770,9 @@ on($('#successBtn'), 'click', async () => {
   commitStep(90);
 });
 on($('#missBtn'), 'click', async () => {
+  try { stopOvenSpeech(); } catch (_) {}
+  hideOvenStage();
+  hideMixingStage();
   stopLiveMic();
   if (isFinishStep(getCurrent(state))) await playFinishTestEffect(45);
   commitStep(45);
@@ -1308,6 +1902,7 @@ function stopLiveMic() {
   lastFrameTs = 0;
   wasAboveBurst = false;
   stopTakSpeech();
+  stopMixingSpeech();
   setListening(cutSession, false);
   liveStream?.getTracks().forEach((t) => t.stop());
   liveStream = null;
@@ -1317,8 +1912,13 @@ function stopLiveMic() {
   $('#voiceBar').style.width = '0%';
   $('#micBtn').textContent = '마이크 켜기';
   $('#micBtn').disabled = false;
-  // 굽기/끓이기/마무리 중이면 게이지·진행 루프는 유지
-  if (!roastArmed && !boilArmed && !finishArmed && animationId) {
+  // 굽기/끓이기/오븐 중이면 게이지·진행 루프는 유지
+  // Only cancel the main animation loop when no staged processes are active
+  // and the ovenStage is not visible. This ensures the oven countdown can run
+  // during the startup delay even if the mic is off.
+  const ovenStageEl = $('#ovenStage');
+  const ovenVisible = ovenStageEl && !ovenStageEl.hidden;
+  if (!roastArmed && !boilArmed && !finishArmed && !ovenArmed && !mixingArmed && !ovenVisible && animationId) {
     cancelAnimationFrame(animationId);
     animationId = null;
   }
@@ -1332,7 +1932,9 @@ function volumePercentFromAnalyser(freq) {
 }
 
 function tickLiveMic(ts) {
-  if (!micOn && !roastArmed && !finishArmed && !boilArmed) return;
+  const ovenStageEl = $('#ovenStage');
+  const ovenStageVisible = ovenStageEl && !ovenStageEl.hidden;
+  if (!micOn && !roastArmed && !boilArmed && !finishArmed && !ovenArmed && !mixingArmed && !ovenStageVisible) return;
 
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
@@ -1350,6 +1952,7 @@ function tickLiveMic(ts) {
   const knife = $('#knifeHand');
   const board = $('#cutBoard');
   const current = getCurrent(state);
+  if (!isMixingStep(current)) hideMixingStage();
 
   if (multiplayer.connected && multiplayer.isMyTurn && ts - lastActivitySentAt >= 100) {
     lastActivitySentAt = ts;
@@ -1430,6 +2033,47 @@ function tickLiveMic(ts) {
     }
   }
 
+  if (ovenArmed && isOvenStep(current)) {
+    ovenElapsed += dt;
+    // 깜빡임: 4Hz 토글
+    ovenLightOn = Math.floor(ovenElapsed * 4) % 2 === 0;
+    syncOvenUi();
+
+    if (micOn && !speechRec) {
+      // 시작 시 음성 리스너 켜기
+      const ok = startOvenSpeech();
+      $('#micStatus').textContent = ok ? '오븐 듣는 중 · 「띵」으로 끄세요' : '음성인식 불가 · 버튼으로 진행';
+    } else if (!micOn) {
+      $('#micStatus').textContent = `오븐 가동 중 · ${Math.max(0, Math.round(ovenVisualDuration - ovenElapsed))}초 남음`;
+    }
+
+    if (ovenStopped) {
+      const userAt = ovenUserStopAt != null ? ovenUserStopAt : ovenElapsed;
+      const diffToTarget = Math.abs(userAt - (ovenTargetTime || 0));
+      const success = diffToTarget <= (ovenAcceptWindow || 0);
+      const score = Math.round(Math.max(40, 95 - diffToTarget * 30));
+      // cleanup speech listener specifically
+      try { stopOvenSpeech(); } catch (_) {}
+      hideOvenStage();
+      stopLiveMic();
+      $('#micStatus').textContent = success ? `오븐 정지 · 성공! · ${score}점` : `오븐 정지 · 실패 · ${score}점`;
+      commitStep(score);
+      return;
+    }
+
+    if (ovenElapsed >= ovenVisualDuration) {
+      // 시간이 다 흘렀고 사용자가 못맞춘 경우: 실패
+      const diff = Math.abs(ovenElapsed - (ovenTargetTime || 0));
+      const score = Math.round(Math.max(20, 60 - diff * 20));
+      try { stopOvenSpeech(); } catch (_) {}
+      hideOvenStage();
+      stopLiveMic();
+      $('#micStatus').textContent = `시간 초과 · 실패 · ${score}점`;
+      commitStep(score);
+      return;
+    }
+  }
+
   if (finishArmed && isFinishStep(current)) {
     const pitch = micOn && wave
       ? detectPitch(wave, audioContext?.sampleRate || 48000)
@@ -1493,7 +2137,53 @@ function tickLiveMic(ts) {
     }
   }
 
-  if (micOn || roastArmed || boilArmed || finishArmed) animationId = requestAnimationFrame(tickLiveMic);
+  if (mixingArmed && isMixingStep(current)) {
+    const blowVol = micOn ? volumePercent : 45;
+    tickMixing(mixingSession, blowVol, dt);
+
+    const mixState = getMixingState(mixingSession);
+    const scoreDisplay = $('#mixingScore');
+    if (scoreDisplay) {
+      scoreDisplay.textContent = `${Math.round(mixState.accuracy)}%`;
+    }
+
+    // 보울 모션 업데이트
+    const bowl = $('#mixingBowlImg');
+    if (bowl) {
+      const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
+      const rotation = getBowlRotation(mixingSession);
+      bowl.style.opacity = mixState.hasFailedOut ? '0.88' : '1';
+      bowl.style.transform = `translate(calc(-50% + ${bowlPos.x}px), calc(-50% + ${bowlPos.y}px)) rotate(${rotation}deg)`;
+    }
+
+    // 섞기 이미지 모션 업데이트
+    const mixingImg = $('#mixingContentImg');
+    if (mixingImg) {
+      const offset = getMixingOffset(mixingSession);
+      const rotation = getMixingRotation(mixingSession);
+      const contentYOffset = 8;
+      const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
+      const baseX = bowlPos.x + offset.x;
+      const baseY = bowlPos.y + contentYOffset + offset.y;
+      mixingImg.style.transform = `translate(calc(-50% + ${baseX}px), calc(-50% + ${baseY}px)) rotate(${rotation}deg)`;
+      mixingImg.style.opacity = offset.opacity;
+    }
+
+    if (micOn) {
+      $('#micStatus').textContent = `섞기 중 · 정확도 ${Math.round(mixState.accuracy)}% · 시간 ${Math.round(mixState.elapsed)}/${Math.round(mixState.totalDuration)}초`;
+    }
+
+    if (mixState.done) {
+      const score = getMixingScore(mixingSession);
+      hideMixingStage();
+      stopLiveMic();
+      $('#micStatus').textContent = `섞기 완료 · ${score}점`;
+      commitStep(score);
+      return;
+    }
+  }
+
+  if (micOn || roastArmed || boilArmed || finishArmed || ovenArmed || mixingArmed || ovenStageVisible) animationId = requestAnimationFrame(tickLiveMic);
   else animationId = null;
 }
 
@@ -1507,7 +2197,9 @@ $('#micBtn').addEventListener('click', async () => {
           ? '마이크 끔 · 게이지는 약불로 내려감'
           : boilArmed
             ? '마이크 끔 · 보글보글이 약해져요'
-            : '마이크를 켜거나 테스트 입력을 사용하세요.';
+            : mixingArmed
+              ? '마이크 끔 · 섞기가 멈춤'
+              : '마이크를 켜거나 테스트 입력을 사용하세요.';
       return;
     }
 
@@ -1543,10 +2235,18 @@ $('#micBtn').addEventListener('click', async () => {
       $('#micStatus').textContent = '「후우~」 불어 강불 · 멈추면 약불';
     } else if (finishArmed) {
       stopTakSpeech();
-      $('#micStatus').textContent = '음정을 듣는 중 · 주황색 목표 구간에 맞춰보세요.';
+      $('#micStatus').textContent = '음정을 듣는 중 · 주황색 목표 구간에 맞춰 「아—」 하고 길게 내보세요.';
+    } else if (ovenArmed) {
+      stopTakSpeech();
+      const ok = startOvenSpeech();
+      $('#micStatus').textContent = ok ? '오븐 듣는 중 · 「띵」으로 끄세요' : '음성인식 불가 · 버튼으로 진행';
     } else if (boilArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '「보글보글」 · 기포가 올라와요';
+    } else if (mixingArmed) {
+      stopTakSpeech();
+      const ok = startMixingSpeech();
+      $('#micStatus').textContent = ok ? '섞기 중 · 대본을 읽으세요' : '섞기 중 (음성인식 없음)';
     } else {
       $('#micStatus').textContent = '볼륨 측정 중 (이 공정은 버튼으로 진행)';
     }
@@ -1558,6 +2258,14 @@ $('#micBtn').addEventListener('click', async () => {
       ? `${msg} · HTTPS 또는 localhost에서 실행해 주세요.`
       : msg;
     stopLiveMic();
+  }
+});
+
+// 화면 전환 버튼 핸들러 (data-go 속성)
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-go]');
+  if (button) {
+    showScreen(button.dataset.go);
   }
 });
 

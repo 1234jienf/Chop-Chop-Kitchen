@@ -1,4 +1,4 @@
-import { GUESTS, PLAYERS, STARTER_MENU } from './data.js?v=29';
+import { GUESTS, PLAYERS, STARTER_MENU } from './data.js?v=55';
 
 const flattenSteps = (menu) =>
   menu.courses.flatMap((course) => course.steps.map((process) => ({ ...process, course })));
