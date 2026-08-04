@@ -1,4 +1,4 @@
-import {
+﻿import {
   ACTION_LABEL,
   INGREDIENT_LABEL,
   TYPE_ICON,
@@ -920,7 +920,6 @@ function renderMixingStage(stepData) {
       html += `<span>${guideScript[i]}</span>`;
     }
     guideText.innerHTML = html;
-  }
   }
 
   // 점수 표시
