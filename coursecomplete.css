@@ -1,0 +1,17 @@
+.course-complete[hidden] { display: none; }
+.course-complete { position: fixed; z-index: 2000; inset: 0; display: grid; place-items: center; padding: 24px; overflow: hidden; background: radial-gradient(circle at 50% 42%, #6f482ddd 0, #1b110cf5 62%); color: #fff7e8; text-align: center; opacity: 0; transition: opacity .3s ease; pointer-events: auto; }
+.course-complete.is-visible { opacity: 1; }
+.course-complete.is-leaving { opacity: 0; }
+.course-complete__glow { position: absolute; width: min(78vw, 720px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #f6bd4840 0, transparent 68%); animation: course-glow 2.2s ease-in-out infinite; pointer-events: none; }
+.course-complete__card { position: relative; z-index: 1; width: min(620px, 100%); transform: translateY(28px) scale(.96); transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+.is-visible .course-complete__card { transform: none; }
+.course-complete__eyebrow { margin: 0 0 8px; color: #f6bd48; font-size: .75rem; font-weight: 900; letter-spacing: .22em; }
+.course-complete h2 { margin: 0; font: 700 clamp(2.4rem, 7vw, 4.6rem)/1.05 Georgia, serif; }
+.course-complete__message { margin: 12px 0 2px; color: #d7c3ac; }
+.course-complete__plate { display: grid; place-items: center; width: min(430px, 80vw); height: min(42vh, 380px); margin: 0 auto 8px; pointer-events: none; }
+.course-complete__plate::before { content: ""; grid-area: 1/1; width: 78%; aspect-ratio: 1; border: 18px solid #f1e2c7; border-radius: 50%; background: #fffaf0; box-shadow: 0 30px 50px #0009; }
+.course-complete__plate img { z-index: 1; grid-area: 1/1; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 18px 15px #2a160888); animation: course-dish-in .6s .12s both cubic-bezier(.2, .8, .2, 1); }
+.course-complete .primary { position: relative; z-index: 3; min-width: min(310px, 90vw); pointer-events: auto; touch-action: manipulation; }
+@keyframes course-dish-in { from { opacity: 0; transform: translateY(25px) scale(.82) rotate(-4deg); } to { opacity: 1; transform: none; } }
+@keyframes course-glow { 50% { transform: scale(1.08); opacity: .72; } }
+@media (max-width: 520px) { .course-complete { padding: 18px; } .course-complete__plate { height: 40vh; } .course-complete__plate::before { border-width: 12px; } .course-complete__message { font-size: .9rem; } }

@@ -46,9 +46,11 @@ import {
   tickFinish,
 } from './sprinklepourplay.js?v=44';
 import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=44';
+import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=2';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
+const courseCompleteView = createCourseCompleteView();
 let setupPlayerIds = ['p1', 'p2', 'p3'];
 const multiplayer = new KitchenMultiplayer({
   onRoom: (snapshot) => {
@@ -1054,9 +1056,18 @@ function applySharedSnapshot(snapshot) {
   state.results = game.results.map((accuracy, index) => ({ ...getSteps(state)[index], accuracy }));
   state.ingredientCuts = { ...game.ingredientCuts };
   state.finished = state.currentStep >= getSteps(state).length;
+  const completedCourse = state.currentStep === previousStepIndex + 1
+    ? completedCourseAt(getSteps(state), previousStepIndex)
+    : null;
   if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
   renderGame();
   showScreen(state.finished ? 'result' : 'game');
+  if (completedCourse) {
+    courseCompleteView.show(completedCourse, {
+      isLast: state.finished,
+      nextCourse: getCurrent(state)?.course,
+    });
+  }
   const currentStep = getCurrent(state);
   if (state.currentStep === previousStepIndex + 1
     && isCuttingStep(previousStep)
@@ -1083,8 +1094,16 @@ function commitStep(accuracy) {
     multiplayer.submitStep(accuracy, state.ingredientCuts);
     return;
   }
+  const completedStepIndex = state.currentStep;
+  const completedCourse = completedCourseAt(getSteps(state), completedStepIndex);
   submitStep(state, accuracy);
   renderGame();
+  if (completedCourse) {
+    courseCompleteView.show(completedCourse, {
+      isLast: state.finished,
+      nextCourse: getCurrent(state)?.course,
+    });
+  }
   scheduleFitGameStage();
 }
 
