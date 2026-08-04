@@ -31,11 +31,13 @@ export function createMixingSession() {
     // 음성 추적
     lastVolume: 0,
     volumeHistory: [], // 최근 음량 기록
+    recognizedText: '', // 현재 인식된 음성 텍스트
     
     // 정확도 추적
     accuracy: 0, // 0~100
     accuracyHistory: [],
     accuracyDropRate: 0,
+    scriptMatchProgress: 0, // 대본 일치도 (0~1)
     
     // 실패 상태
     hasFailedOut: false, // 섞기 이미지가 튀어나갔는지 여부
@@ -76,24 +78,31 @@ export function tickMixing(session, volumePercent, dtSec) {
   
   if (!session.hasFailedOut) {
     // 정상 상태: 보울 공전 + 섞기 이미지 자전
-    session.bowlOrbitAngle += ORBIT_SPEED_BASE * Math.max(0.55, speedMult) * dtSec;
-    session.mixingSpinAngle += SPIN_SPEED_BASE * Math.max(0.13, speedMult) * dtSec;
+    const orbitSpeed = ORBIT_SPEED_BASE * Math.max(0.55, speedMult);
+    const spinSpeed = SPIN_SPEED_BASE * Math.max(0.13, speedMult);
+    
+    // 공전/자전 속도 불일치에 따른 보너스 속도 (차이가 클수록 빠르게)
+    const speedDiff = Math.abs(orbitSpeed - spinSpeed) / Math.max(orbitSpeed, spinSpeed);
+    const bonusSpeedMult = 1 + speedDiff * 0.5; // 불일치 정도에 따라 최대 1.5배 증가
+    
+    session.bowlOrbitAngle += orbitSpeed * bonusSpeedMult * dtSec;
+    session.mixingSpinAngle += spinSpeed * bonusSpeedMult * dtSec;
     
     // 각도 정규화 (360도 이상이면 초기화)
     session.bowlOrbitAngle = session.bowlOrbitAngle % 360;
     session.mixingSpinAngle = session.mixingSpinAngle % 360;
     
-    // 정확도 갱신 (음량 기반)
+    // 정확도 갱신 (음량 및 속도 불일치 기반)
     // 정상 범위: VOLUME_MIN ~ VOLUME_MAX
     // 범위를 벗어나면 정확도 감소
     const isInRange = volumePercent >= VOLUME_MIN && volumePercent <= VOLUME_MAX;
     let newAccuracy = session.accuracy;
     if (isInRange) {
-      // 정확도 회복 (천천히)
-      newAccuracy = Math.min(100, session.accuracy + 8 * dtSec);
+      // 정확도 회복 (천천히) - 속도 불일치가 적을수록 더 빨리 회복
+      newAccuracy = Math.min(100, session.accuracy + (8 * (1 - speedDiff * 0.3)) * dtSec);
     } else {
-      // 정확도 하락 (빠르게)
-      newAccuracy = Math.max(0, session.accuracy - 25 * dtSec);
+      // 정확도 하락 (빠르게) - 속도 불일치가 클수록 더 빨리 하락
+      newAccuracy = Math.max(0, session.accuracy - (25 * (1 + speedDiff * 0.3)) * dtSec);
     }
     session.accuracy = newAccuracy;
     session.accuracyHistory.push({ accuracy: newAccuracy, time: session.elapsed });
@@ -123,6 +132,13 @@ export function tickMixing(session, volumePercent, dtSec) {
     }
   }
   
+  // 대본을 완벽하게 읽었으면 즉시 완료
+  if (session.scriptMatchProgress >= 1.0) {
+    session.done = true;
+    session.active = false;
+    return;
+  }
+  
   // 시간이 다 되었으면 완료
   if (session.elapsed >= SCRIPT_DURATION) {
     session.done = true;
@@ -142,10 +158,12 @@ export function resetMixing(session, scriptText = DEFAULT_SCRIPT) {
   
   session.lastVolume = 0;
   session.volumeHistory = [];
+  session.recognizedText = '';
   
   session.accuracy = 100;
   session.accuracyHistory = [];
   session.accuracyDropRate = 0;
+  session.scriptMatchProgress = 0;
   
   session.hasFailedOut = false;
   session.failOutStart = 0;

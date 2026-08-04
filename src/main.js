@@ -137,7 +137,7 @@ function kitchenBackgroundFor(stepData) {
 const ASSET_VER = 'v45';
 
 function fitGameStage() {
-  // 풀스크린 오버레이 레이아웃 — scale 고정 불필요
+  // 풀스크린 오버레이 레이아웃 ? scale 고정 불필요
   const stage = $('#gameStage');
   if (stage) stage.style.removeProperty('--stage-scale');
 }
@@ -735,8 +735,30 @@ function startMixingSpeech() {
         chunk += ` ${result[a]?.transcript || ''}`;
       }
     }
-    // 인식된 텍스트를 기반으로 정확도 계산 가능 (현재는 음량 기반)
-    // 추후 고도화 가능
+    chunk = chunk.trim();
+    
+    // ?몄떇???띿뒪?몃? 湲곕컲?쇰줈 ?蹂??쇱튂??怨꾩궛
+    if (chunk && mixingSession.guideScript) {
+      const targetScript = mixingSession.guideScript;
+      let matchCount = 0;
+      for (let i = 0; i < Math.min(chunk.length, targetScript.length); i++) {
+        if (chunk[i] === targetScript[i]) matchCount++;
+      }
+      mixingSession.recognizedText = chunk;
+      mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / targetScript.length);
+      
+      // 媛?대뱶 ?띿뒪???됱긽 ?낅뜲?댄듃
+      const guideText = document.getElementById('mixingGuideText');
+      if (guideText) {
+        let html = '';
+        for (let i = 0; i < targetScript.length; i++) {
+          const matched = i < chunk.length && chunk[i] === targetScript[i];
+          const cls = matched ? 'matched' : '';
+          html += `<span class="${cls}">${targetScript[i]}</span>`;
+        }
+        guideText.innerHTML = html;
+      }
+    }
   };
 
   mixingSpeechRec.onerror = (event) => {
@@ -893,7 +915,11 @@ function renderMixingStage(stepData) {
   // 가이드 텍스트 표시
   const guideText = $('#mixingGuideText');
   if (guideText) {
-    guideText.textContent = guideLine;
+    let html = '';
+    for (let i = 0; i < guideScript.length; i++) {
+      html += `<span>${guideScript[i]}</span>`;
+    }
+    guideText.innerHTML = html;
   }
 
   // 점수 표시
@@ -1004,7 +1030,7 @@ function showScreen(name) {
 }
 
 function renderPlayers() {
-  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">⋮⋮</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['👩‍🍳', '🧑‍🍳', '👨‍🍳'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
+  $('#playerSetup').innerHTML = state.players.map((player, index) => `<article class="player-card" data-player-index="${index}" aria-grabbed="false"><span class="drag-handle" aria-hidden="true">??</span><span class="order-number">${index + 1}</span><div class="chef-avatar">${['?????', '?????', '?????'][index]}</div><label>PLAYER ${index + 1}<input data-player="${index}" value="${player}" maxlength="12" aria-label="${index + 1}번 플레이어 이름"></label></article>`).join('');
 }
 
 let draggedPlayerCard = null;
@@ -1533,7 +1559,7 @@ function tickLiveMic(ts) {
       const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
       const toastBit = ingId === 'baguette' ? ` · ${toastStatusLabel(roastToastLevel(roastHeat))}` : '';
       $('#micStatus').textContent = roastHeat.blowing
-        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ✓' : ''}${toastBit}`
+        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ?' : ''}${toastBit}`
         : `쉬면 천천히 약불로… · 목표 ${bandLabel(roastHeat.targetBand)}${toastBit}`;
     }
     if (roastHeat.done) {
@@ -1754,4 +1780,6 @@ $('#micBtn').addEventListener('click', async () => {
 
 renderPlayers();
 showScreen('start');
+
+
 

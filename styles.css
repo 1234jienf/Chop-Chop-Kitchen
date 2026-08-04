@@ -904,6 +904,13 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   text-shadow:0 0 10px rgba(0,0,0,.7);
   pointer-events:none;
 }
+.guide-script span{
+  transition:color 0.1s ease;
+}
+.guide-script span.matched{
+  color:#ffd700;
+  text-shadow:0 0 8px rgba(255,215,0,.8);
+}
 .score-display{
   display:flex;
   justify-content:center;

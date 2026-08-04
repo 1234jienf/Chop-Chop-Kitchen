@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -8,44 +8,44 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Lexend:wght@600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css?v=46" />
+    <link rel="stylesheet" href="./styles.css?v=48" />
   </head>
   <body>
     <main id="app">
       <section class="screen start-screen active" data-screen="start">
         <div class="start-glow"></div>
         <div class="hero-copy">
-          <p class="eyebrow">3인 협동 쿠킹 릴레이</p>
+          <p class="eyebrow">3???묐룞 荑좏궧 由대젅??/p>
           <h1>CHOP-CHOP<br><span>KITCHEN</span></h1>
-          <p class="hero-description">한 접시를 완성하기 위해<br>세 명의 셰프가 칼과 불을 이어받습니다.</p>
-          <button class="primary big" data-go="restaurant">게임 시작</button>
+          <p class="hero-description">???묒떆瑜??꾩꽦?섍린 ?꾪빐<br>??紐낆쓽 ?고봽媛 移쇨낵 遺덉쓣 ?댁뼱諛쏆뒿?덈떎.</p>
+          <button class="primary big" data-go="restaurant">寃뚯엫 ?쒖옉</button>
         </div>
-        <div class="hero-dish" aria-hidden="true"><span>🍅</span><span>🥩</span><span>🍋</span></div>
+        <div class="hero-dish" aria-hidden="true"><span>?뛿</span><span>?ⅸ</span><span>?뜈</span></div>
       </section>
 
       <section class="screen restaurant-screen" data-screen="restaurant">
-        <div class="screen-heading light"><p id="restaurantDayLabel" class="eyebrow">DAY 1 · 푸드트럭</p><h2 id="restaurantHeading">작은 주방에서<br>큰 이야기가 시작됩니다</h2></div>
-        <button class="restaurant-card" data-go="lobby" aria-label="식당 안으로 들어가기">
-          <img id="restaurantExterior" src="./src/assets/배경/식당외관_푸드트럭_투명.png" alt="Chop-Chop Kitchen 푸드트럭 외관" />
-          <span class="enter-label">문을 눌러 입장하기 <b>→</b></span>
+        <div class="screen-heading light"><p id="restaurantDayLabel" class="eyebrow">DAY 1 쨌 ?몃뱶?몃윮</p><h2 id="restaurantHeading">?묒? 二쇰갑?먯꽌<br>???댁빞湲곌? ?쒖옉?⑸땲??/h2></div>
+        <button class="restaurant-card" data-go="lobby" aria-label="?앸떦 ?덉쑝濡??ㅼ뼱媛湲?>
+          <img id="restaurantExterior" src="./src/assets/諛곌꼍/?앸떦?멸?_?몃뱶?몃윮_?щ챸.png" alt="Chop-Chop Kitchen ?몃뱶?몃윮 ?멸?" />
+          <span class="enter-label">臾몄쓣 ?뚮윭 ?낆옣?섍린 <b>??/b></span>
         </button>
-        <button class="text-button back" data-go="start">← 돌아가기</button>
+        <button class="text-button back" data-go="start">???뚯븘媛湲?/button>
       </section>
 
       <section class="screen lobby-screen" data-screen="lobby">
-        <div class="lobby-copy"><p class="eyebrow">WELCOME TO THE KITCHEN</p><h2>영업 준비를<br>시작할까요?</h2><p>오늘의 셰프들이 모두 도착했습니다.<br>역할과 순서를 정하면 주방이 열립니다.</p></div>
+        <div class="lobby-copy"><p class="eyebrow">WELCOME TO THE KITCHEN</p><h2>?곸뾽 以鍮꾨?<br>?쒖옉?좉퉴??</h2><p>?ㅻ뒛???고봽?ㅼ씠 紐⑤몢 ?꾩갑?덉뒿?덈떎.<br>??븷怨??쒖꽌瑜??뺥븯硫?二쇰갑???대┰?덈떎.</p></div>
         <div class="lobby-door"><div class="door-sign">OPEN</div><div class="door-window">CHOP<br><b>CHOP</b></div></div>
-        <div class="bottom-actions"><button class="text-button" data-go="restaurant">← 밖으로</button><button class="primary" data-go="roles">셰프 준비하기 →</button></div>
+        <div class="bottom-actions"><button class="text-button" data-go="restaurant">??諛뽰쑝濡?/button><button class="primary" data-go="roles">?고봽 以鍮꾪븯湲???/button></div>
       </section>
 
       <section class="screen roles-screen" data-screen="roles">
         <div class="content-wrap narrow">
           <div class="step-kicker">STEP 01 / TEAM SETUP</div>
-          <h2>오늘의 릴레이 순서를 정하세요</h2>
-          <p class="muted">각 셰프는 순서대로 자르기, 끓이기, 굽기 공정을 이어받습니다.</p>
+          <h2>?ㅻ뒛??由대젅???쒖꽌瑜??뺥븯?몄슂</h2>
+          <p class="muted">媛??고봽???쒖꽌?濡??먮Ⅴ湲? ?볦씠湲? 援쎄린 怨듭젙???댁뼱諛쏆뒿?덈떎.</p>
           <div id="playerSetup" class="player-setup"></div>
-          <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드를 꾹 누른 채 원하는 위치로 끌어 놓으세요.</p></div>
-          <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">이 순서로 시작하기 →</button></div>
+          <div class="role-note"><span>?뮕</span><p><b>?쒖꽌媛 怨??꾨왂?댁뿉??</b><br>移대뱶瑜?袁??꾨Ⅸ 梨??먰븯???꾩튂濡??뚯뼱 ?볦쑝?몄슂.</p></div>
+          <div class="bottom-actions inline"><button class="text-button" data-go="lobby">???댁쟾</button><button id="confirmTeamBtn" class="primary">???쒖꽌濡??쒖옉?섍린 ??/button></div>
         </div>
       </section>
 
@@ -55,7 +55,7 @@
             <header class="hud-top">
               <div class="hud-brand">
                 <p class="eyebrow">CHOP-CHOP KITCHEN</p>
-                <strong>오늘의 영업</strong>
+                <strong>?ㅻ뒛???곸뾽</strong>
               </div>
               <div class="hud-step">
                 <p id="playerLabel" class="eyebrow"></p>
@@ -64,8 +64,8 @@
               </div>
               <div class="stats">
                 <span>DAY <b id="dayLabel">1</b></span>
-                <span>자금 <b id="moneyLabel">1,200G</b></span>
-                <span>식당 <b id="gradeLabel">1성</b></span>
+                <span>?먭툑 <b id="moneyLabel">1,200G</b></span>
+                <span>?앸떦 <b id="gradeLabel">1??/b></span>
                 <span class="step-count" id="stepCount"></span>
               </div>
             </header>
@@ -75,30 +75,30 @@
                 <span id="stationLabel" class="station-label"></span>
                 <img id="kitchenBg" class="kitchen-bg-img" alt="" />
                 <div id="cutStack" class="cut-stack" hidden>
-                  <img id="cuttingBoardImg" class="cutting-board-img" alt="도마" draggable="false" />
+                  <img id="cuttingBoardImg" class="cutting-board-img" alt="?꾨쭏" draggable="false" />
                   <div id="cutBoard" class="cut-board"></div>
-                  <img id="passHand" class="pass-hand" src="./src/assets/도구/오른손.png?v=1" alt="" hidden aria-hidden="true">
+                  <img id="passHand" class="pass-hand" src="./src/assets/?꾧뎄/?ㅻⅨ??png?v=1" alt="" hidden aria-hidden="true">
                 </div>
                 <img id="cutIngredient" class="cut-ingredient" alt="" hidden>
                 <div id="roastStage" class="roast-stage" hidden>
                   <img id="fireImg" class="fire-img" alt="" draggable="false" />
-                  <img id="panImg" class="pan-img" alt="프라이팬" draggable="false" />
+                  <img id="panImg" class="pan-img" alt="?꾨씪?댄뙩" draggable="false" />
                   <div id="roastSlices" class="roast-slices" aria-hidden="true"></div>
                 </div>
 
                 <div id="ovenStage" class="oven-stage" hidden>
-                  <!-- 오븐 불빛과 다이얼 UI -->
-                  <img id="ovenLightImg" class="oven-light" alt="오븐 불빛" draggable="false" />
+                  <!-- ?ㅻ툙 遺덈튆怨??ㅼ씠??UI -->
+                  <img id="ovenLightImg" class="oven-light" alt="?ㅻ툙 遺덈튆" draggable="false" />
                   <div id="ovenContents" class="oven-contents" aria-hidden="true"></div>
                   <p id="ovenHint" class="oven-hint"></p>
                 </div>
                 <div class="oven-dial-wrap">
-                  <div id="ovenDial" class="oven-dial" aria-hidden="true" role="img" aria-label="오븐 다이얼"></div>
+                  <div id="ovenDial" class="oven-dial" aria-hidden="true" role="img" aria-label="?ㅻ툙 ?ㅼ씠??></div>
                 </div>
 
                 <div id="boilStage" class="boil-stage boil-low" hidden>
                   <img id="boilFireImg" class="fire-img" alt="" draggable="false" />
-                  <img id="potImg" class="pot-img" alt="냄비" draggable="false" />
+                  <img id="potImg" class="pot-img" alt="?꾨퉬" draggable="false" />
                   <div id="boilContents" class="boil-contents" aria-hidden="true"></div>
                   <div class="boil-fx" aria-hidden="true">
                     <div class="boil-steam"><i></i><i></i><i></i><i></i></div>
@@ -110,13 +110,13 @@
 
                 <div id="mixingStage" class="mixing-stage" hidden>
                   <div class="mixing-container">
-                    <img id="mixingBowlImg" class="mixing-bowl" alt="보울" draggable="false" />
-                    <img id="mixingContentImg" class="mixing-content" alt="섞기" draggable="false" />
+                    <img id="mixingBowlImg" class="mixing-bowl" alt="蹂댁슱" draggable="false" />
+                    <img id="mixingContentImg" class="mixing-content" alt="?욊린" draggable="false" />
                   </div>
                   <div class="mixing-guide">
-                    <p id="mixingGuideText" class="guide-script">동구리오 타돗테모 츠키마센</p>
+                    <p id="mixingGuideText" class="guide-script">?숆뎄由ъ삤 ??쀭뀒紐?痢좏궎留덉꽱</p>
                     <div class="score-display">
-                      <span>정확도</span>
+                      <span>?뺥솗??/span>
                       <span id="mixingScore" class="score-value">100%</span>
                     </div>
                   </div>
@@ -126,33 +126,33 @@
                 </div>
                 <div id="heatRhythm" class="heat-rhythm" hidden>
                   <div class="heat-rhythm-head">
-                    <span id="heatTargetLabel">목표 중불</span>
-                    <span id="heatNowLabel">지금 중불</span>
+                    <span id="heatTargetLabel">紐⑺몴 以묐텋</span>
+                    <span id="heatNowLabel">吏湲?以묐텋</span>
                   </div>
                   <div class="heat-rhythm-track" aria-hidden="true">
-                    <span class="heat-tick" style="left:17%">약</span>
-                    <span class="heat-tick" style="left:50%">중</span>
-                    <span class="heat-tick" style="left:83%">강</span>
+                    <span class="heat-tick" style="left:17%">??/span>
+                    <span class="heat-tick" style="left:50%">以?/span>
+                    <span class="heat-tick" style="left:83%">媛?/span>
                     <div id="heatTarget" class="heat-target"></div>
                     <div id="heatCursor" class="heat-cursor"></div>
                   </div>
                   <div class="heat-match-meter"><div id="heatMatchFill"></div></div>
-                  <p id="heatLabel" class="heat-rhythm-hint">목표 구간에 불길을 맞춰 「후우~」</p>
+                  <p id="heatLabel" class="heat-rhythm-hint">紐⑺몴 援ш컙??遺덇만??留욎떠 ?뚰썑????/p>
                 </div>
                 <div id="heatGauge" class="heat-gauge" hidden>
-                  <span class="heat-cap">강</span>
+                  <span class="heat-cap">媛?/span>
                   <div class="heat-track">
                     <div id="heatFill" class="heat-fill"></div>
                     <i class="heat-zone high"></i>
                     <i class="heat-zone mid"></i>
                     <i class="heat-zone low"></i>
                   </div>
-                  <span class="heat-cap">약</span>
-                  <p class="heat-label">중불</p>
+                  <span class="heat-cap">??/span>
+                  <p class="heat-label">以묐텋</p>
                 </div>
-                <img id="knifeHand" class="knife-hand" src="./src/assets/도구/오른손_칼.png?v=3" alt="" hidden>
-                <div id="stationIcon" class="station-icon">🔪</div>
-                <div class="hands emoji-hands" aria-hidden="true"><span>🫲</span><span>🫱</span></div>
+                <img id="knifeHand" class="knife-hand" src="./src/assets/?꾧뎄/?ㅻⅨ??移?png?v=3" alt="" hidden>
+                <div id="stationIcon" class="station-icon">?뵬</div>
+                <div class="hands emoji-hands" aria-hidden="true"><span>?ゲ</span><span>?ケ</span></div>
               </div>
 
               <aside class="hud-drawer guest-drawer" id="guestDrawer">
@@ -169,24 +169,25 @@
 
             <footer class="hud-bottom">
               <div class="meter"><div id="voiceBar"></div></div>
-              <p id="micStatus" class="mic-status">마이크를 켜거나 테스트 입력을 사용하세요.</p>
+              <p id="micStatus" class="mic-status">留덉씠?щ? 耳쒓굅???뚯뒪???낅젰???ъ슜?섏꽭??</p>
               <div class="actions">
-                <button id="micBtn" class="secondary">마이크 켜기</button>
-                <button id="missBtn" class="danger">실수 입력</button>
-                <button id="successBtn" class="primary">성공 입력</button>
+                <button id="micBtn" class="secondary">留덉씠??耳쒓린</button>
+                <button id="missBtn" class="danger">?ㅼ닔 ?낅젰</button>
+                <button id="successBtn" class="primary">?깃났 ?낅젰</button>
               </div>
               <div id="fireTestBtns" class="fire-test-btns" hidden>
-                <button type="button" data-fire-test="low">약불</button>
-                <button type="button" data-fire-test="mid">중불</button>
-                <button type="button" data-fire-test="high">강불</button>
+                <button type="button" data-fire-test="low">?쎈텋</button>
+                <button type="button" data-fire-test="mid">以묐텋</button>
+                <button type="button" data-fire-test="high">媛뺣텋</button>
               </div>
             </footer>
           </div>
         </div>
       </section>
 
-      <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">정산하고 다음 날 →</button></div></section>
+      <section class="screen result-screen" data-screen="result"><div class="result-card"><p class="eyebrow">TODAY'S REVIEW</p><div id="reviewPanel"></div><button id="nextDayBtn" class="primary big">?뺤궛?섍퀬 ?ㅼ쓬 ????/button></div></section>
     </main>
-    <script type="module" src="./src/main.js?v=45"></script>
+    <script type="module" src="./src/main.js?v48"></script>
   </body>
 </html>
+
