@@ -72,6 +72,8 @@ let lastFireBand = 'mid';
 let lastToastLevel = 0;
 let boilProgress = 0;
 let boilLevel = -1;
+/** 끓이기 불 테스트 고정 (약/중/강) */
+let boilFireLock = null;
 const BOIL_NEED_SEC = 9;
 
 let mixingArmed = false;
@@ -132,7 +134,7 @@ function kitchenBackgroundFor(stepData) {
   return '주방_끓이기.png';
 }
 
-const ASSET_VER = 'v44';
+const ASSET_VER = 'v45';
 
 function fitGameStage() {
   // 풀스크린 오버레이 레이아웃 — scale 고정 불필요
@@ -279,21 +281,44 @@ function applyFireSprite(band, force = false) {
   fire.src = force ? `${base}&r=${Date.now()}` : base;
 }
 
-function syncFireTestButtons() {
+function applyBoilFireSprite(band, force = false) {
+  const fire = $('#boilFireImg');
+  if (!fire) return;
+  if (!force && fire.dataset.band === band) return;
+  fire.dataset.band = band;
+  fire.alt = bandLabel(band);
+  const base = fireSrcFor(band, ASSET_VER);
+  fire.src = force ? `${base}&r=${Date.now()}` : base;
+}
+
+function syncFireTestButtons(activeBand) {
   const wrap = $('#fireTestBtns');
   if (!wrap) return;
+  const band = activeBand || roastHeat.band;
   wrap.querySelectorAll('[data-fire-test]').forEach((btn) => {
-    btn.classList.toggle('is-on', btn.dataset.fireTest === roastHeat.band);
+    btn.classList.toggle('is-on', btn.dataset.fireTest === band);
   });
 }
 
 function forceFireBand(band) {
+  if (boilArmed) {
+    boilFireLock = band;
+    const level = band === 'high' ? 2 : band === 'mid' ? 1 : 0;
+    boilLevel = level;
+    boilProgress = level === 2 ? BOIL_NEED_SEC * 0.8 : level === 1 ? BOIL_NEED_SEC * 0.45 : BOIL_NEED_SEC * 0.1;
+    applyBoilFireSprite(band, true);
+    syncBoilFx();
+    syncFireTestButtons(band);
+    $('#micStatus').textContent = `테스트 고정 · ${bandLabel(band)}`;
+    return;
+  }
   const heat = band === 'low' ? 18 : band === 'high' ? 85 : 50;
   roastHeat.heat = heat;
   roastHeat.band = band;
   roastHeat.debugLock = true;
   applyFireSprite(band, true);
   syncHeatUi();
+  syncFireTestButtons(band);
   $('#micStatus').textContent = `테스트 고정 · ${bandLabel(band)} (다시 플레이하려면 성공/실수로 넘어가기)`;
 }
 
@@ -328,7 +353,7 @@ function syncHeatUi() {
   }
 
   applyFireSprite(roastHeat.band);
-  syncFireTestButtons();
+  syncFireTestButtons(roastHeat.band);
 
   if (blowFx) {
     const on = Boolean(roastHeat.blowing);
@@ -365,17 +390,33 @@ function hideBoilStage() {
   boilArmed = false;
   boilProgress = 0;
   boilLevel = -1;
+  boilFireLock = null;
+  const testBtns = $('#fireTestBtns');
+  if (testBtns && !roastArmed) testBtns.hidden = true;
 }
 
 function syncBoilFx() {
   const stage = $('#boilStage');
   if (!stage) return;
-  const p = boilProgress / Math.max(0.001, BOIL_NEED_SEC);
-  const level = p >= 0.66 ? 2 : p >= 0.33 ? 1 : 0;
-  boilLevel = level;
+
+  let level = boilLevel;
+  let band = 'low';
+  if (boilFireLock) {
+    band = boilFireLock;
+    level = band === 'high' ? 2 : band === 'mid' ? 1 : 0;
+    boilLevel = level;
+  } else {
+    const p = boilProgress / Math.max(0.001, BOIL_NEED_SEC);
+    level = p >= 0.66 ? 2 : p >= 0.33 ? 1 : 0;
+    boilLevel = level;
+    band = level === 2 ? 'high' : level === 1 ? 'mid' : 'low';
+  }
+
   stage.classList.toggle('boil-low', level === 0);
   stage.classList.toggle('boil-med', level === 1);
   stage.classList.toggle('boil-hot', level === 2);
+  applyBoilFireSprite(band);
+  syncFireTestButtons(band);
 }
 
 function hideMixingStage() {
@@ -730,9 +771,9 @@ function renderBoilStage(stepData) {
   pot.alt = '물 든 냄비';
 
   if (fire) {
-    fire.src = fireSrcFor('mid', ASSET_VER);
-    fire.dataset.band = 'mid';
-    fire.alt = '중불';
+    fire.src = fireSrcFor('low', ASSET_VER);
+    fire.dataset.band = 'low';
+    fire.alt = '약불';
   }
 
   const ids = (stepData?.ingredients || []).filter(Boolean);
@@ -764,6 +805,11 @@ function renderBoilStage(stepData) {
   }
 
   boilArmed = true;
+  boilFireLock = null;
+  const testBtns = $('#fireTestBtns');
+  if (testBtns) testBtns.hidden = false;
+  syncFireTestButtons('low');
+  syncBoilFx();
   if (!animationId) {
     lastFrameTs = 0;
     animationId = requestAnimationFrame(tickLiveMic);
@@ -1281,7 +1327,7 @@ on($('#missBtn'), 'click', () => {
 });
 on($('#fireTestBtns'), 'click', (event) => {
   const btn = event.target.closest('[data-fire-test]');
-  if (!btn || !roastArmed) return;
+  if (!btn || (!roastArmed && !boilArmed)) return;
   forceFireBand(btn.dataset.fireTest);
 });
 on($('#nextDayBtn'), 'click', () => {
