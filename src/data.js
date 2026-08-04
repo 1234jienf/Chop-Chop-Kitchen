@@ -5,6 +5,7 @@ export const ACTION_STATION = {
   cutting: 'cut',
   boiling: 'boil',
   roasting: 'grill',
+  oven: 'grill',
   putting: 'finish',
   mixing: 'finish',
   sprinkling: 'finish',
@@ -21,6 +22,7 @@ export const ACTION_LABEL = {
   cutting: '자르기',
   boiling: '끓이기',
   roasting: '굽기',
+  oven: '오븐 굽기',
   putting: '뿌리기·붓기',
   mixing: '섞기',
   sprinkling: '뿌리기',
@@ -90,7 +92,7 @@ export const INGREDIENT_LABEL = {
 export function step(action, ingredients, meta) {
   const list = Array.isArray(ingredients) ? ingredients : [ingredients];
   const label = list.map((id) => INGREDIENT_LABEL[id] || id).join('·');
-  return {
+  const obj = {
     action,
     ingredients: list,
     type: ACTION_STATION[action] || 'cut',
@@ -98,6 +100,25 @@ export function step(action, ingredients, meta) {
     targetPattern: meta.targetPattern,
     hint: meta.hint,
   };
+
+  // 오븐 전용: 재료 파일을 ./src/assets/오븐/에서 우선 찾도록 하는 필드 추가
+  if (action === 'oven') {
+    // ingredients 배열에는 사용자가 파일명(예: tart.png) 또는 기존 id(tart) 중 하나를 넣을 수 있음
+    // 파일명이 명시되어 있으면 그대로 사용하고, 그렇지 않으면 INGREDIENT_ASSETS 매핑을 참조
+    obj.ovenFiles = list.map((id) => {
+      if (typeof id === 'string' && id.includes('.')) return id; // 파일명으로 전달됨
+      const mapped = INGREDIENT_ASSETS[id];
+      if (mapped) return mapped;
+      // fallback: id 기반 파일명
+      return `${id}.png`;
+    });
+
+    // n_a, n_b 같은 오븐 전용 타이머를 meta로 전달할 수 있도록 유지
+    if (meta?.ovenVisualDuration) obj.ovenVisualDuration = meta.ovenVisualDuration;
+    if (meta?.ovenAcceptWindow) obj.ovenAcceptWindow = meta.ovenAcceptWindow;
+  }
+
+  return obj;
 }
 
 /** 도감 전체 (확장 레시피) */
@@ -200,7 +221,7 @@ export const RECIPE_CATALOG = [
     level: 'easy',
     steps: [
       step('cutting', ['apple'], { targetPattern: '스으윽~', hint: '낮은 소리를 길게 유지하세요.' }),
-      step('roasting', ['tart'], { title: '타르트 굽기', targetPattern: '스으-', hint: '약한 소리를 일정하게.' }),
+      step('oven', ['타르트반죽_오븐'], { title: '타르트 굽기', targetPattern: '스으-', hint: '약한 소리를 일정하게.' }),
       step('boiling', ['caramel'], { title: '캐러멜 소스 졸이기', targetPattern: '보글보글', hint: '짧은 소리를 여러 번.' }),
     ],
   },

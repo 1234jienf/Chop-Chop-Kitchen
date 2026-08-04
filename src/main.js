@@ -39,6 +39,15 @@ let liveStream = null;
 let peakArmed = false;
 let roastArmed = false;
 let boilArmed = false;
+let ovenArmed = false;
+let ovenStartTimer = null;
+let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
+let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
+let ovenAcceptWindow = 1.2; // 허용 오차(초)
+let ovenElapsed = 0;
+let ovenStopped = false;
+let ovenUserStopAt = null; // 사용자가 띵을 외친 시각(초)
+let ovenLightOn = false;
 let lastFrameTs = 0;
 let speechRec = null;
 let speechWanted = false;
@@ -99,6 +108,7 @@ function stationLabel(stepData) {
 function kitchenBackgroundFor(stepData) {
   if (stepData?.action === 'cutting') return '주방_배경.png';
   if (stepData?.action === 'roasting') return '주방_끓이기.png';
+  if (stepData?.action === 'oven') return '주방_오븐닫_2.png';
   return '주방_끓이기.png';
 }
 
@@ -178,6 +188,10 @@ function isCuttingStep(stepData) {
 
 function isRoastingStep(stepData) {
   return stepData?.action === 'roasting';
+}
+
+function isOvenStep(stepData) {
+  return stepData?.action === 'oven';
 }
 
 function isBoilingStep(stepData) {
@@ -338,6 +352,261 @@ function syncBoilFx() {
   stage.classList.toggle('boil-low', level === 0);
   stage.classList.toggle('boil-med', level === 1);
   stage.classList.toggle('boil-hot', level === 2);
+}
+
+/** 오븐 스테이지 UI/로직 추가 */
+function syncOvenUi() {
+  const dial = $('#ovenDial');
+  const light = $('#ovenLightImg');
+  const hint = $('#ovenHint');
+
+  // 다이얼 이미지(배경)와 바늘(needle)을 설정하고 회전시키기
+  if (dial) {
+    // background: 다이얼 이미지 (사용자 추가: src/assets/오븐/다이얼.png)
+    dial.style.backgroundImage = `url(${assetUrl('./src/assets/오븐/다이얼.png')})`;
+    dial.style.backgroundSize = 'contain';
+    dial.style.backgroundRepeat = 'no-repeat';
+    dial.style.backgroundPosition = 'center';
+    // 바늘 엘리먼트가 없으면 생성
+    let needle = dial.querySelector('.oven-needle');
+    if (!needle) {
+      needle = document.createElement('div');
+      needle.className = 'oven-needle';
+      dial.appendChild(needle);
+    }
+    // 회전: ovenVisualDuration 동안 1바퀴 (시작은 12시)
+    const frac = ovenVisualDuration > 0 ? Math.min(1, ovenElapsed / ovenVisualDuration) : 0;
+    const deg = frac * 360; // 0deg = 12시 시작, 시계 방향 회전
+    needle.style.transform = `translateX(-50%) rotate(${deg}deg)`;
+  }
+
+  if (light) {
+    // 깜빡임은 클래스 토글로 처리
+    light.classList.toggle('is-on', Boolean(ovenLightOn));
+  }
+  if (hint) {
+    if (ovenTargetTime != null) {
+      hint.textContent = `목표 시점 ${ovenTargetTime.toFixed(1)}초에 '띵'을 말하세요`;
+    } else {
+      hint.textContent = '';
+    }
+  }
+}
+
+function renderOvenStage(stepData) {
+  const stage = $('#ovenStage');
+  if (!stage) return;
+  hideRoastStage();
+  hideBoilStage();
+  stage.hidden = false;
+  $('.counter-scene')?.classList.add('is-oven');
+
+  // 오븐 내부에 재료 이미지를 표시 (오븐 전용 파일명 우선)
+  try {
+    // Use a screen-fixed container so ingredients are positioned relative to the viewport,
+    // not the transformed .oven-stage. Create it if missing.
+    let screenContents = $('#ovenContentsScreen');
+    if (!screenContents) {
+      screenContents = document.createElement('div');
+      screenContents.id = 'ovenContentsScreen';
+      screenContents.className = 'oven-contents-screen';
+      document.body.appendChild(screenContents);
+    }
+    // keep the original in-stage container empty to avoid duplicates
+    const inStage = $('#ovenContents');
+    if (inStage) inStage.innerHTML = '';
+
+    const files = stepData?.ovenFiles || [];
+    const ingIds = stepData?.ingredients || [];
+    screenContents.innerHTML = '';
+    files.forEach((fileName, idx) => {
+      const img = document.createElement('img');
+      img.className = 'oven-ingredient';
+      img.alt = ingIds[idx] || fileName;
+      // 시도 순서: ./src/assets/오븐/<fileName> -> ./src/assets/재료/<fileName> -> ./src/assets/오븐/<basename>
+      const tryPaths = [
+        `./src/assets/오븐/${fileName}`,
+        `./src/assets/재료/${fileName}`,
+        `./src/assets/오븐/${fileName.replace(/^.*[\\\\/]/, '')}`,
+      ];
+      let attempt = 0;
+      const tryNext = () => {
+        if (attempt >= tryPaths.length) return;
+        const p = tryPaths[attempt++];
+        img.onerror = () => tryNext();
+        img.src = assetUrl(p);
+      };
+      tryNext();
+      img.style.transformOrigin = '50% 50%';
+
+      const item = document.createElement('div');
+      item.className = 'oven-item';
+      item.style.position = 'relative';
+      item.style.display = 'inline-block';
+      item.style.zIndex = '30'; // above many scene elements when screen-fixed
+      const horiz = (idx - (files.length-1)/2) * 8;
+      // size the ingredient to 0.9 scale as requested
+      const scaleVal = 0.9;
+      item.style.transform = `translateX(${horiz}%) scale(${scaleVal})`;
+      item.style.transformOrigin = '50% 100%';
+      item.appendChild(img);
+      screenContents.appendChild(item);
+    });
+  } catch (e) { console.error('oven render error', e); }
+
+  // 다이얼은 25초 고정으로 작동
+  ovenVisualDuration = 25;
+  ovenAcceptWindow = (typeof stepData?.ovenAcceptWindow === 'number') ? stepData.ovenAcceptWindow : ovenAcceptWindow;
+
+  ovenElapsed = 0;
+  ovenStopped = false;
+  ovenUserStopAt = null;
+  ovenLightOn = false;
+  // start delayed: set ovenArmed after 2 seconds regardless of mic state
+  ovenArmed = false;
+  if (ovenStartTimer) { clearTimeout(ovenStartTimer); ovenStartTimer = null; }
+  ovenStartTimer = setTimeout(() => {
+    ovenArmed = true;
+    // ensure animation loop runs when oven actually starts
+    if (!animationId) {
+      lastFrameTs = 0;
+      animationId = requestAnimationFrame(tickLiveMic);
+    }
+    $('#micStatus').textContent = `오븐 가동 중 · ${ovenVisualDuration}초 동안 유지하세요`;
+  }, 2000);
+
+  // 오븐 불빛 이미지는 로드하지 않음 (불빛 끔)
+  const light = $('#ovenLightImg');
+  if (light) {
+    light.src = '';
+    light.classList.remove('is-on');
+  }
+
+  // 목표 시점(n_b)을 설정: stepData에 명시되어 있지 않으면 5~15 사이 정수로 선택
+  ovenTargetTime = (typeof stepData?.ovenTargetTime === 'number')
+    ? stepData.ovenTargetTime
+    : (Math.floor(Math.random() * 11) + 5); // 5..15 (정수)
+
+  // 다이얼 상에 목표 가이드(타겟 마커) 표시
+  const dial = $('#ovenDial');
+  if (dial) {
+    let target = dial.querySelector('.oven-target');
+    if (!target) {
+      target = document.createElement('div');
+      target.className = 'oven-target';
+      dial.appendChild(target);
+    }
+    const angle = -90 + (ovenTargetTime / Math.max(1, ovenVisualDuration)) * 360;
+    // transform rotates the marker to angle then pushes it outward
+    target.style.transform = `rotate(${angle}deg) translateY(-52%) translateX(-50%)`;
+    target.style.display = 'block';
+  }
+
+  syncOvenUi();
+  $('#micStatus').textContent = `오븐 가동 중 · ${ovenVisualDuration}초 동안 유지하세요`;
+  $('#stationIcon').hidden = true;
+  if (!animationId) {
+    lastFrameTs = 0;
+    animationId = requestAnimationFrame(tickLiveMic);
+  }
+}
+
+function hideOvenStage() {
+  const stage = $('#ovenStage');
+  if (stage) stage.hidden = true;
+  $('.counter-scene')?.classList.remove('is-oven');
+  // clear oven contents (both in-stage and screen-fixed)
+  const contents = $('#ovenContents');
+  if (contents) contents.innerHTML = '';
+  const screenContents = $('#ovenContentsScreen');
+  if (screenContents) { screenContents.innerHTML = ''; screenContents.remove(); }
+  // remove dial needle & target & background
+  const dial = $('#ovenDial');
+  if (dial) {
+    dial.style.backgroundImage = '';
+    const needle = dial.querySelector('.oven-needle');
+    if (needle) dial.removeChild(needle);
+    const target = dial.querySelector('.oven-target');
+    if (target) dial.removeChild(target);
+  }
+  // clear light
+  const light = $('#ovenLightImg');
+  if (light) { light.src = ''; light.classList.remove('is-on'); }
+
+  try { stopOvenSpeech(); } catch (_) {}
+
+  if (ovenStartTimer) { clearTimeout(ovenStartTimer); ovenStartTimer = null; }
+
+  ovenArmed = false;
+  ovenElapsed = 0;
+  ovenVisualDuration = 0;
+  ovenTargetTime = null;
+  ovenUserStopAt = null;
+  ovenStopped = false;
+  ovenLightOn = false;
+}
+
+function startOvenSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    $('#micStatus').textContent = '음성인식 미지원 · 키 입력으로 진행 (Chrome 권장)';
+    return false;
+  }
+
+  stopTakSpeech();
+  speechWanted = true;
+  speechRec = new SR();
+  speechRec.lang = 'ko-KR';
+  speechRec.continuous = true;
+  speechRec.interimResults = true;
+  speechRec.maxAlternatives = 5;
+
+  speechRec.onresult = (event) => {
+    if (!ovenArmed) return;
+    let chunk = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      for (let a = 0; a < result.length; a++) {
+        chunk += ` ${result[a]?.transcript || ''}`;
+      }
+    }
+    const compact = chunk.replace(/\s+/g, '').toLowerCase();
+    if (compact.includes('띵') || compact.includes('딩') || compact.includes('ding')) {
+      ovenStopped = true;
+      ovenUserStopAt = ovenElapsed; // 기록된 시각
+      $('#micStatus').textContent = `띵 소리 감지됨 · ${ovenUserStopAt.toFixed(2)}s 기록`;
+    }
+  };
+
+  speechRec.onerror = (event) => {
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+  };
+
+  speechRec.onend = () => {
+    if (!speechWanted || !micOn) return;
+    try { speechRec.start(); } catch (_) {}
+  };
+
+  // 주기적 재시작
+  speechKickTimer = setInterval(() => {
+    if (!speechWanted || !speechRec || !micOn) return;
+    try { speechRec.stop(); } catch (_) {}
+  }, 3500);
+
+  try { speechRec.start(); return true; } catch (error) { $('#micStatus').textContent = `음성인식 시작 실패: ${error.message}`; return false; }
+}
+
+function stopOvenSpeech() {
+  speechWanted = false;
+  if (speechKickTimer) { clearInterval(speechKickTimer); speechKickTimer = null; }
+  if (!speechRec) return;
+  try {
+    speechRec.onend = null;
+    speechRec.onresult = null;
+    speechRec.onerror = null;
+    speechRec.stop();
+  } catch (_) {}
+  speechRec = null;
 }
 
 /** 끓이기: 물 냄비 고정 + 보글 이펙트 */
@@ -592,9 +861,11 @@ function renderGame() {
   counterScene.classList.toggle('is-cutting', isCuttingStep(current));
   counterScene.classList.toggle('is-roasting', isRoastingStep(current));
   counterScene.classList.toggle('is-boiling', isBoilingStep(current));
+  counterScene.classList.toggle('is-oven', isOvenStep(current));
   gameStage?.classList.toggle('is-cutting', isCuttingStep(current));
   gameStage?.classList.toggle('is-roasting', isRoastingStep(current));
   gameStage?.classList.toggle('is-boiling', isBoilingStep(current));
+  gameStage?.classList.toggle('is-oven', isOvenStep(current));
 
   const kitchenBg = $('#kitchenBg');
   kitchenBg.src = assetUrl(`./src/assets/배경/${kitchenBackgroundFor(current)}`);
@@ -661,6 +932,23 @@ function renderGame() {
     setListening(cutSession, false);
     renderRoastStage(current);
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
+  } else if (isOvenStep(current)) {
+    peakArmed = false;
+    hideBoilStage();
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+    cutIngredient.hidden = true;
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    renderOvenStage(current);
+    $('#stepHint').textContent = `${current.hint || '오븐을 끄는 타이밍을 맞추세요.'}`;
   } else if (isBoilingStep(current)) {
     peakArmed = false;
     hideRoastStage();
@@ -752,6 +1040,9 @@ on($('#confirmTeamBtn'), 'click', () => {
   }
 });
 on($('#successBtn'), 'click', async () => {
+  // Ensure any live listeners and oven-specific state are cleaned up
+  try { stopOvenSpeech(); } catch (_) {}
+  hideOvenStage();
   stopLiveMic();
   if (isCuttingStep(getCurrent(state)) && !cutSession.finished && !cutSession.animating) {
     await runCannedCut();
@@ -761,6 +1052,8 @@ on($('#successBtn'), 'click', async () => {
   renderGame();
 });
 on($('#missBtn'), 'click', () => {
+  try { stopOvenSpeech(); } catch (_) {}
+  hideOvenStage();
   stopLiveMic();
   submitStep(state, 45);
   renderGame();
@@ -896,8 +1189,13 @@ function stopLiveMic() {
   $('#voiceBar').style.width = '0%';
   $('#micBtn').textContent = '마이크 켜기';
   $('#micBtn').disabled = false;
-  // 굽기/끓이기 중이면 게이지·진행 루프는 유지
-  if (!roastArmed && !boilArmed && animationId) {
+  // 굽기/끓이기/오븐 중이면 게이지·진행 루프는 유지
+  // Only cancel the main animation loop when no staged processes are active
+  // and the ovenStage is not visible. This ensures the oven countdown can run
+  // during the startup delay even if the mic is off.
+  const ovenStageEl = $('#ovenStage');
+  const ovenVisible = ovenStageEl && !ovenStageEl.hidden;
+  if (!roastArmed && !boilArmed && !ovenArmed && !ovenVisible && animationId) {
     cancelAnimationFrame(animationId);
     animationId = null;
   }
@@ -911,7 +1209,9 @@ function volumePercentFromAnalyser(freq) {
 }
 
 function tickLiveMic(ts) {
-  if (!micOn && !roastArmed && !boilArmed) return;
+  const ovenStageEl = $('#ovenStage');
+  const ovenStageVisible = ovenStageEl && !ovenStageEl.hidden;
+  if (!micOn && !roastArmed && !boilArmed && !ovenArmed && !ovenStageVisible) return;
 
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
@@ -985,6 +1285,49 @@ function tickLiveMic(ts) {
     }
   }
 
+  if (ovenArmed && isOvenStep(current)) {
+    ovenElapsed += dt;
+    // 깜빡임: 4Hz 토글
+    ovenLightOn = Math.floor(ovenElapsed * 4) % 2 === 0;
+    syncOvenUi();
+
+    if (micOn && !speechRec) {
+      // 시작 시 음성 리스너 켜기
+      const ok = startOvenSpeech();
+      $('#micStatus').textContent = ok ? '오븐 듣는 중 · 「띵」으로 끄세요' : '음성인식 불가 · 버튼으로 진행';
+    } else if (!micOn) {
+      $('#micStatus').textContent = `오븐 가동 중 · ${Math.max(0, Math.round(ovenVisualDuration - ovenElapsed))}초 남음`;
+    }
+
+    if (ovenStopped) {
+      const userAt = ovenUserStopAt != null ? ovenUserStopAt : ovenElapsed;
+      const diffToTarget = Math.abs(userAt - (ovenTargetTime || 0));
+      const success = diffToTarget <= (ovenAcceptWindow || 0);
+      const score = Math.round(Math.max(40, 95 - diffToTarget * 30));
+      // cleanup speech listener specifically
+      try { stopOvenSpeech(); } catch (_) {}
+      hideOvenStage();
+      stopLiveMic();
+      $('#micStatus').textContent = success ? `오븐 정지 · 성공! · ${score}점` : `오븐 정지 · 실패 · ${score}점`;
+      submitStep(state, score);
+      renderGame();
+      return;
+    }
+
+    if (ovenElapsed >= ovenVisualDuration) {
+      // 시간이 다 흘렀고 사용자가 못맞춘 경우: 실패
+      const diff = Math.abs(ovenElapsed - (ovenTargetTime || 0));
+      const score = Math.round(Math.max(20, 60 - diff * 20));
+      try { stopOvenSpeech(); } catch (_) {}
+      hideOvenStage();
+      stopLiveMic();
+      $('#micStatus').textContent = `시간 초과 · 실패 · ${score}점`;
+      submitStep(state, score);
+      renderGame();
+      return;
+    }
+  }
+
   if (micOn && peakArmed && isCuttingStep(current) && !cutSession.finished && !cutSession.animating) {
     advanceKnife(cutSession, dt);
     syncKnifeEl(knife, cutSession);
@@ -1024,7 +1367,7 @@ function tickLiveMic(ts) {
     }
   }
 
-  if (micOn || roastArmed || boilArmed) animationId = requestAnimationFrame(tickLiveMic);
+  if (micOn || roastArmed || boilArmed || ovenArmed || ovenStageVisible) animationId = requestAnimationFrame(tickLiveMic);
   else animationId = null;
 }
 
@@ -1066,6 +1409,10 @@ $('#micBtn').addEventListener('click', async () => {
     } else if (roastArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '「후우~」 불어 강불 · 멈추면 약불';
+    } else if (ovenArmed) {
+      stopTakSpeech();
+      const ok = startOvenSpeech();
+      $('#micStatus').textContent = ok ? '오븐 듣는 중 · 「띵」으로 끄세요' : '음성인식 불가 · 버튼으로 진행';
     } else if (boilArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '「보글보글」 · 기포가 올라와요';

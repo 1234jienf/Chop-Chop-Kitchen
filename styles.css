@@ -737,6 +737,182 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   transform-origin:center 62%;
 }
 
+/* Oven: visuals for oven stage and ingredients */
+.oven-stage{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:40%;
+  transform:translate(-50%,-50%);
+  /* 유리창 크기는 이전 오븐 스테이지 기준보다 조금 더 크게 설정 */
+  width:min(90%,520px);
+  aspect-ratio:1.05;
+  pointer-events:none;
+  overflow:hidden; /* 오븐 안쪽만 보이도록 자르기 */
+}
+.oven-stage[hidden]{display:none!important}
+.oven-contents{
+  position:absolute;
+  left:50%;
+  bottom:20%; /* moved lower so food sits closer to oven floor */
+  transform:translateX(-50%);
+  width:40vw;
+  max-width:70%;
+  display:flex;
+  flex-wrap:nowrap;
+  justify-content:center;
+  align-items:flex-end;
+  gap:6px;
+  z-index:3; /* behind oven light */
+  overflow:visible; /* ensure child images can extend inside without being locally clipped */
+}
+.oven-contents::before,
+.oven-contents::after{
+  display:none;
+}
+
+/* Screen-fixed oven contents: positioned relative to viewport (screen) */
+.oven-contents-screen{
+  position:fixed;
+  left:50%;
+  bottom:7%; /* moved to 7% as requested */
+  top:auto; /* explicitly use bottom, not top */
+  transform:translateX(-50%);
+  width:40vw;
+  max-width:70%;
+  height:auto;
+  display:flex;
+  flex-wrap:nowrap;
+  justify-content:center;
+  align-items:flex-end;
+  gap:6px;
+  z-index:30; /* above most scene elements */
+  pointer-events:none;
+}
+
+.oven-contents-screen .oven-item{ margin:0; display:flex; justify-content:center; align-items:flex-end; }
+.oven-contents-screen .oven-item img{ margin:0 auto; display:block; }
+.oven-item{
+  display:inline-block;
+  position:relative;
+  width:100%;
+  max-width:none;
+  transform: none;
+  transform-origin:50% 100%;
+  overflow:visible;
+}
+
+.oven-item img.oven-ingredient{
+  width:auto;
+  max-width:100%;
+  max-height:60vh; /* prevent the image escaping the oven vertically */
+  display:block;
+}
+.oven-item::after{
+  display:none;
+}
+.oven-light{
+  position:absolute;
+  left:50%;
+  top:35%;
+  transform:translate(-50%,0) scale(3); /* 300% 크기 */
+  transform-origin:50% 0; /* scale expands downward + sideways only */
+  z-index:12; /* in front of contents and food */
+  width:30%;
+  max-width:none;
+  pointer-events:none;
+  opacity:0;
+  visibility:hidden;
+  display:none; /* completely hide the light image */
+  transition:opacity .12s ease, transform .12s ease;
+  clip-path: inset(20% 0 0 0); /* 윗부분 숨기기 */
+}
+.oven-hint{
+  position:absolute;
+  left:50%;
+  bottom:10%;
+  transform:translateX(-50%);
+  width:90%;
+  text-align:center;
+  color:#fff;
+  font-size:1rem;
+  letter-spacing:.02em;
+  text-shadow:0 0 10px rgba(0,0,0,.75);
+  z-index:6;
+}
+@keyframes ovenPulse {
+  0% { transform:translate(-50%,0) scale(1); opacity:0.9; filter:drop-shadow(0 6px 8px rgba(244,90,34,0.06)); }
+  50% { transform:translate(-50%,0) scale(1.18); opacity:1; filter:drop-shadow(0 12px 20px rgba(244,90,34,0.25)); }
+  100% { transform:translate(-50%,0) scale(1); opacity:0.9; filter:drop-shadow(0 6px 8px rgba(244,90,34,0.06)); }
+}
+@keyframes ovenSparkle {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+.oven-light.is-on{opacity:1; filter:drop-shadow(0 8px 14px #f40a); animation: ovenPulse 1.8s ease-in-out infinite;}
+
+/* 다이얼 박스와 바늘 스타일 */
+#ovenDial{
+  position:relative;
+  width:100%;
+  height:100%;
+  z-index:5;
+  pointer-events:none;
+  background-size:contain;
+  background-repeat:no-repeat;
+  background-position:center;
+}
+.oven-dial-wrap{
+  position:fixed; /* screen 기준 위치 */
+  right:20%;
+  bottom:15%;
+  width:130px;
+  height:130px;
+  pointer-events:none;
+  z-index:20; /* ensure above many elements */
+}
+#ovenDial .oven-needle{
+  position:absolute;
+  left:50%;
+  bottom:50%;
+  width:4px;
+  height:48%;
+  transform-origin:50% 100%; /* 바늘의 회전 축: 아래쪽 중심 */
+  background:#e63b3b; /* 빨간색 침 */
+  border-radius:2px;
+  z-index:7;
+  transition:transform .06s linear;
+}
+
+.counter-scene.is-oven .emoji-hands,
+.counter-scene.is-oven .station-icon{display:none}
+.counter-scene.is-oven .cut-ingredient{display:none!important}
+.game-stage.is-oven .hud-drawer{
+  opacity:.28;
+  transform:scale(.98);
+  pointer-events:none;
+}
+.game-stage.is-oven .hud-drawer:hover{
+  opacity:.92;
+  pointer-events:auto;
+  transform:scale(1);
+}
+.game-stage.is-oven .counter-scene.is-oven .kitchen-bg-img{
+  transform:none;
+  transform-origin:center 62%;
+}
+
+/* 오븐 타겟 마커 */
+#ovenDial .oven-target{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:8px;
+  height:8px;
+  /* target marker removed per request */
+  display:none !important;
+}
+
 /* Boil: pot on burner — 불 위치는 굽기(.fire-img)와 동일 */
 .boil-stage{
   --bowl-x: 50%;
