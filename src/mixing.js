@@ -133,7 +133,7 @@ export function tickMixing(session, volumePercent, dtSec) {
   }
   
   // 대본을 완벽하게 읽었으면 즉시 완료
-  if (session.scriptMatchProgress >= 1.0) {
+  if (session.scriptMatchProgress >= 0.8) {
     session.done = true;
     session.active = false;
     return;
