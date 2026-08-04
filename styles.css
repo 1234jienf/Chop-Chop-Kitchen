@@ -728,7 +728,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 .finish-stage[hidden]{display:none!important}
 .finish-dish{position:absolute;left:50%;top:57%;width:58%;height:68%;object-fit:contain;transform:translate(-50%,-50%);filter:drop-shadow(0 14px 12px #0009)}
 .finish-tool{position:absolute;z-index:7;left:27%;bottom:-24%;width:34%;height:58%;object-fit:contain;transform:translateX(-50%) rotate(-8deg);transform-origin:50% 90%;filter:drop-shadow(0 10px 8px #0009);transition:left .22s ease,transform .16s ease}
-.finish-stage.is-pouring .finish-tool{left:50%;top:-7%;bottom:auto;width:31%;height:48%;transform:translateX(-50%) rotate(-15deg)}
+.finish-stage.is-pouring .finish-tool{left:50%;top:6%;bottom:auto;width:31%;height:48%;transform:translateX(-50%) rotate(-15deg)}
 .finish-stream{position:absolute;z-index:6;left:50%;bottom:30%;width:20%;height:36%;transform:translateX(-50%);opacity:0;transition:opacity .12s}
 .finish-stage.is-pouring .finish-stream{opacity:1}
 .finish-stage.is-test-miss .finish-stream{opacity:.42}
