@@ -1,4 +1,49 @@
-﻿import {
+import {
+  ACTION_LABEL,
+  INGREDIENT_LABEL,
+  TYPE_ICON,
+  TYPE_LABEL,
+  ingredientAsset,
+  primaryIngredient,
+} from './data.js?v=51';
+import {
+  calculateResult,
+  createGameState,
+  getCurrent,
+  getIngredientCuts,
+  getPlayer,
+  getSteps,
+  rememberIngredientCuts,
+  startNextDay,
+  submitStep,
+} from './state.js?v=51';
+import {
+  advanceKnife,
+  attachKnifeToTomato,
+  completeAfterVoice,
+  countTakInText,
+  createCutSession,
+  crossSectionFrom,
+  detectTakBurst,
+  playCannedCut,
+  renderCutBoard,
+  renderLiveTomato,
+  renderSplitBoard,
+  resetCutSession,
+  setListening,
+  syncKnifeEl,
+  tryChopOnTak,
+} from './cutplay.js?v=51';
+import {
+  bandLabel,
+  createRoastHeat,
+  fireSrcFor,
+  resetRoastHeat,
+  roastAccuracy,
+  stopRoastHeat,
+  tickRoastHeat,
+} from './roastheat.js?v=51';
+import {
   createMixingSession,
   DEFAULT_SCRIPT,
   getBowlPosition,
@@ -10,7 +55,7 @@
   startMixing,
   stopMixing,
   tickMixing,
-} from './mixing.js?v=50';
+} from './mixing.js?v=51';
 import {
   createFinishSession,
   detectPitch,
@@ -22,8 +67,8 @@ import {
   reachTimeLeft,
   stopFinishSession,
   tickFinish,
-} from './sprinklepourplay.js?v=50';
-import { KitchenMultiplayer } from './multiplayer.js?v=50';
+} from './sprinklepourplay.js?v=51';
+import { KitchenMultiplayer } from './multiplayer.js?v=51';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
