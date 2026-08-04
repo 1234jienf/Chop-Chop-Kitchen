@@ -2057,6 +2057,14 @@ $('#micBtn').addEventListener('click', async () => {
   }
 });
 
+// 화면 전환 버튼 핸들러 (data-go 속성)
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-go]');
+  if (button) {
+    showScreen(button.dataset.go);
+  }
+});
+
 renderPlayers();
 showScreen('start');
 

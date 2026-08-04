@@ -273,7 +273,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'main', categoryLabel: '메인', name: 'Beef Wellington', nameKo: '안심 웰링턴', level: 'hard',
+    category: 'main',
+    categoryLabel: '메인',
+    name: 'Beef Wellington', 
+    nameKo: '안심 웰링턴', 
+    level: 'hard',
     steps: [
       step('cutting', ['beef'], { title: '소고기 손질', targetPattern: '스으윽~', hint: '결을 따라 손질하세요.' }),
       step('cutting', ['mushroom'], { title: '양송이 버섯 다지기', targetPattern: '찹찹찹찹', hint: '잘게 다지세요.' }),
@@ -295,7 +299,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'dessert', categoryLabel: '디저트', name: 'Crème Brûlée', nameKo: '크림 브륄레', level: 'normal',
+    category: 'dessert', 
+    categoryLabel: '디저트', 
+    name: 'Crème Brûlée',
+    nameKo: '크림 브륄레', 
+    level: 'normal',
     steps: [
       step('cutting', ['vanilla'], { title: '바닐라빈 껍질 자르기', targetPattern: '스으윽~', hint: '얇게 갈라 주세요.' }),
       step('roasting', ['sugar'], { title: '커스터드 중탕 굽기', targetPattern: '스으-', hint: '약한 열을 유지하세요.' }),
@@ -304,7 +312,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'dessert', categoryLabel: '디저트', name: 'Blueberry Crumble Cake', nameKo: '블루베리 크럼블 케이크', level: 'normal',
+    category: 'dessert', 
+    categoryLabel: '디저트', 
+    name: 'Blueberry Crumble Cake', 
+    nameKo: '블루베리 크럼블 케이크', 
+    level: 'normal',
     steps: [
       step('cutting', ['butter'], { title: '버터 조각내기', targetPattern: '탁·탁·탁', hint: '고르게 조각내세요.' }),
       step('roasting', ['pastry'], { title: '오븐에서 굽기', targetPattern: '치이이익', hint: '노릇하게 구우세요.' }),
