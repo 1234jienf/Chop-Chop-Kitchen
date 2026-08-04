@@ -187,7 +187,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['tomatoes'], { title: '토마토 썰기', targetPattern: '탁·탁·탁', hint: '균일한 간격으로 리듬을 내세요.' }),
       step('cutting', ['baguette'], { title: '바게트 썰기', targetPattern: '콰직!', hint: '강한 한 번의 피크로 썰어요.' }),
       step('roasting', ['baguette'], { title: '바게트 토스트', targetPattern: '치이이익', hint: '일정한 지속음을 유지하세요.' }),
-      step('putting', ['basil', 'olive oil'], { title: '바질·올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음을 2초간 유지하세요.' }),
+      step('putting', ['olive oil'], { title: '올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -202,7 +202,7 @@ export const RECIPE_CATALOG = [
       step('roasting', ['baguette'], { title: '빵칩 굽기', targetPattern: '치이이익', hint: '지속음으로 굽기.' }),
       step('boiling', ['sauce'], { title: '발사믹 리덕션', targetPattern: '후~~~~', hint: '길게 불어 화력을 낮추세요.' }),
       step('mixing', ['타르타르_보울안'], { title: '재료 섞기', targetPattern: '보글보글', mixingAsset: '타르타르_보울안', hint: '짧게 섞는 소리.' }),
-      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '스으-', hint: '약하게 붓듯이.' }),
+      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
