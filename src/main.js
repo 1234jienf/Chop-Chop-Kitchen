@@ -5,8 +5,8 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=29';
-import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js?v=29';
+} from './data.js?v=44';
+import { calculateResult, createGameState, getCurrent, getIngredientCuts, getPlayer, getSteps, rememberIngredientCuts, startNextDay, submitStep } from './state.js?v=44';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -17,19 +17,22 @@ import {
   detectTakBurst,
   playCannedCut,
   renderCutBoard,
+  renderLiveTomato,
+  renderSplitBoard,
   resetCutSession,
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js?v=29';
+} from './cutplay.js?v=45';
 import {
   bandLabel,
   createRoastHeat,
   fireSrcFor,
   resetRoastHeat,
+  roastAccuracy,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js?v=29';
+} from './roastheat.js?v=44';
 import {
   createFinishSession,
   detectPitch,
@@ -41,8 +44,8 @@ import {
   reachTimeLeft,
   stopFinishSession,
   tickFinish,
-} from './sprinklepourplay.js?v=29';
-import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=1';
+} from './sprinklepourplay.js?v=44';
+import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=44';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -69,15 +72,59 @@ const multiplayer = new KitchenMultiplayer({
   onGame: applySharedSnapshot,
   onActivity: (activity) => {
     if (multiplayer.isMyTurn) return;
+    const current = getCurrent(state);
     if (activity.volume != null) $('#voiceBar').style.width = `${activity.volume}%`;
     if (activity.knifeX != null) {
       cutSession.knifeX = activity.knifeX;
       syncKnifeEl($('#knifeHand'), cutSession);
     }
+    if (isCuttingStep(current) && Array.isArray(activity.actualCuts)) {
+      const knife = $('#knifeHand');
+      const counterScene = $('.counter-scene');
+      const previousCutCount = cutSession.actualCuts.length;
+      cutSession.actualCuts = [...activity.actualCuts];
+      if (Array.isArray(activity.cutDone)) cutSession.cutDone = [...activity.cutDone];
+      // renderLiveTomato replaces the board contents. Preserve the shared knife
+      // outside that subtree so spectator re-renders cannot delete it.
+      if (knife && counterScene && knife.parentElement !== counterScene) {
+        counterScene.appendChild(knife);
+      }
+      renderLiveTomato($('#cutBoard'), cutSession, {
+        justCut: cutSession.actualCuts.length > previousCutCount,
+      });
+      attachKnifeToTomato($('#cutBoard'), knife, cutSession.knifeX);
+    }
+    if (isCuttingStep(current)
+      && activity.cutPhase === 'handoff'
+      && activity.stepIndex === state.currentStep) {
+      const knife = $('#knifeHand');
+      const counterScene = $('.counter-scene');
+      if (knife && counterScene && knife.parentElement !== counterScene) {
+        counterScene.appendChild(knife);
+      }
+      if (knife) {
+        knife.hidden = true;
+        knife.classList.remove('knife-hand--on-tomato', 'chopping');
+      }
+      cutSession.finished = true;
+      $('#cutBoard').classList.add('is-burst');
+      renderSplitBoard($('#cutBoard'), cutSession);
+      void playBoardHandoff();
+    }
     if (activity.heat != null) {
       roastHeat.heat = activity.heat;
       roastHeat.band = activity.band;
       syncHeatUi();
+      if (isRoastingStep(current)) syncRoastToastVisuals(primaryIngredient(current));
+    }
+    if (isBoilingStep(current) && activity.boilProgress != null) {
+      boilProgress = activity.boilProgress;
+      if (activity.boilLevel != null) boilLevel = activity.boilLevel;
+      syncBoilFx();
+    }
+    if (isFinishStep(current) && activity.finish) {
+      Object.assign(finishSession, activity.finish);
+      syncFinishUi();
     }
   },
   onError: (message) => { $('#multiStatus').textContent = message; },
@@ -87,6 +134,7 @@ let liveStream = null;
 let peakArmed = false;
 let roastArmed = false;
 let finishArmed = false;
+let boilArmed = false;
 let lastFrameTs = 0;
 let speechRec = null;
 let speechWanted = false;
@@ -97,6 +145,10 @@ const roastHeat = createRoastHeat();
 const finishSession = createFinishSession();
 let finishSubmitted = false;
 let lastFireBand = 'mid';
+let lastToastLevel = 0;
+let boilProgress = 0;
+let boilLevel = -1;
+const BOIL_NEED_SEC = 9;
 
 let audioContext = null;
 let analyser = null;
@@ -106,18 +158,38 @@ let lastActivitySentAt = 0;
 const cutSession = createCutSession({
   onStatus: (msg) => { $('#micStatus').textContent = msg; },
   onComplete: (accuracy) => {
-    stopLiveMic();
-    const current = getCurrent(state);
-    const id = primaryIngredient(current);
-    const cuts = cutSession.actualCuts?.length || cutSession.marks?.length || 3;
-    rememberIngredientCuts(state, id, cuts);
-    $('#micStatus').textContent = `절단 완료 · ${accuracy}점 · ${cuts}조각`;
-    $('.counter-scene')?.classList.remove('is-zoomed');
-    setTimeout(() => {
-      commitStep(accuracy);
-    }, 700);
+    void finishCutStep(accuracy);
   },
 });
+
+async function finishCutStep(accuracy) {
+  stopLiveMic();
+  const current = getCurrent(state);
+  const id = primaryIngredient(current);
+  const cuts = cutSession.actualCuts?.length || cutSession.marks?.length || 3;
+  rememberIngredientCuts(state, id, cuts);
+  $('#micStatus').textContent = `절단 완료 · ${accuracy}점 · ${cuts}조각`;
+  $('.counter-scene')?.classList.remove('is-zoomed');
+
+  const steps = getSteps(state);
+  const next = steps[state.currentStep + 1];
+  const willCutNext = next?.action === 'cutting';
+
+  if (multiplayer.connected && multiplayer.isMyTurn) {
+    multiplayer.sendActivity({
+      cutPhase: 'handoff',
+      stepIndex: state.currentStep,
+    });
+  }
+  await playBoardHandoff();
+  commitStep(accuracy);
+  // In multiplayer the authoritative snapshot advances the step and re-renders
+  // every client. Only the offline path can safely inspect the next local step
+  // immediately after committing it.
+  if (!multiplayer.connected && willCutNext && isCuttingStep(getCurrent(state))) {
+    await playBoardEnter();
+  }
+}
 
 const RESTAURANT_EXTERIORS = [
   { name: '푸드트럭', file: '식당외관_푸드트럭_투명.png', heading: '작은 주방에서<br>큰 이야기가 시작됩니다' },
@@ -132,10 +204,81 @@ function stationLabel(stepData) {
 
 function kitchenBackgroundFor(stepData) {
   if (stepData?.action === 'putting' || stepData?.action === 'sprinkling') return '주방_접시.png';
-  return stepData.action === 'cutting' ? '주방_썰기.png' : '주방_끓이기.png';
+  if (stepData?.action === 'cutting') return '주방_배경.png';
+  if (stepData?.action === 'roasting') return '주방_끓이기.png';
+  return '주방_끓이기.png';
 }
 
-const ASSET_VER = 'v22';
+const ASSET_VER = 'v43';
+
+function fitGameStage() {
+  // 풀스크린 오버레이 레이아웃 — scale 고정 불필요
+  const stage = $('#gameStage');
+  if (stage) stage.style.removeProperty('--stage-scale');
+}
+
+let fitRaf = 0;
+function scheduleFitGameStage() {
+  cancelAnimationFrame(fitRaf);
+  fitRaf = requestAnimationFrame(fitGameStage);
+}
+
+window.addEventListener('resize', scheduleFitGameStage);
+window.addEventListener('orientationchange', scheduleFitGameStage);
+
+function waitMs(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+let boardHandoffToken = 0;
+
+async function playBoardHandoff() {
+  const token = ++boardHandoffToken;
+  const stack = $('#cutStack');
+  const hand = $('#passHand');
+  const knife = $('#knifeHand');
+  if (!stack || stack.hidden) return;
+
+  if (knife) {
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+  }
+
+  // 손이 도마 위에 먼저 얹힌 뒤, 도마+손이 같이 오른쪽으로
+  if (hand) {
+    if (hand.parentElement !== stack) stack.appendChild(hand);
+    hand.hidden = false;
+    hand.classList.remove('is-on-board');
+    void hand.offsetWidth;
+    hand.classList.add('is-on-board');
+  }
+
+  await waitMs(280);
+  if (token !== boardHandoffToken) return;
+  stack.classList.remove('is-entering');
+  stack.classList.add('is-passing-out');
+  await waitMs(900);
+  if (token !== boardHandoffToken) return;
+
+  stack.classList.remove('is-passing-out');
+  stack.hidden = true;
+  if (hand) {
+    hand.classList.remove('is-on-board');
+    hand.hidden = true;
+  }
+}
+
+async function playBoardEnter() {
+  const stack = $('#cutStack');
+  if (!stack || stack.hidden) {
+    if (stack) stack.hidden = false;
+  }
+  if (!stack) return;
+  stack.classList.remove('is-passing-out');
+  stack.classList.add('is-entering');
+  await waitMs(700);
+  stack.classList.remove('is-entering');
+}
 
 function assetUrl(path) {
   return `${path}?${ASSET_VER}`;
@@ -245,92 +388,308 @@ async function playFinishTestEffect(accuracy) {
   return true;
 }
 
-function syncHeatUi() {
-  const fill = $('#heatFill');
-  const label = $('#heatLabel');
-  const fire = $('#fireImg');
-  if (fill) {
-    fill.style.height = `${Math.max(4, roastHeat.heat)}%`;
-    fill.dataset.band = roastHeat.band;
+function isBoilingStep(stepData) {
+  return stepData?.action === 'boiling';
+}
+
+/** 바게트 굽기: 단면(0) → 굽1 → 굽2 → 굽3(최종) */
+function baguetteToastFile(level) {
+  const lv = Math.max(0, Math.min(3, level | 0));
+  if (lv === 0) return '바게트_단면.png';
+  return `바게트굽${lv}.png`;
+}
+
+function roastToastLevel(session) {
+  const p = (session?.matchTime || 0) / Math.max(1, session?.needMatch || 10);
+  if (p >= 0.75) return 3;
+  if (p >= 0.5) return 2;
+  if (p >= 0.25) return 1;
+  return 0;
+}
+
+function roastSliceSrc(ingredientId, session) {
+  if (ingredientId === 'baguette') {
+    return assetUrl(`./src/assets/재료/${baguetteToastFile(roastToastLevel(session))}`);
   }
-  if (label) label.textContent = bandLabel(roastHeat.band);
-  if (fire && roastHeat.band !== lastFireBand) {
-    lastFireBand = roastHeat.band;
-    fire.src = fireSrcFor(roastHeat.band, ASSET_VER);
-    fire.dataset.band = roastHeat.band;
-  } else if (fire) {
-    fire.dataset.band = roastHeat.band;
+  const wholeFile = ingredientAsset(ingredientId);
+  const faceFile = wholeFile ? crossSectionFrom(wholeFile) : null;
+  if (faceFile) return assetUrl(`./src/assets/재료/${faceFile}`);
+  if (wholeFile) return assetUrl(`./src/assets/재료/${wholeFile}`);
+  return null;
+}
+
+function toastStatusLabel(level) {
+  if (level <= 0) return '단면';
+  if (level >= 3) return '굽3';
+  return `굽${level}`;
+}
+
+function syncRoastToastVisuals(ingredientId) {
+  const slices = $('#roastSlices');
+  if (!slices || ingredientId !== 'baguette') return;
+  const level = roastToastLevel(roastHeat);
+  if (level === lastToastLevel) return;
+  lastToastLevel = level;
+  const src = assetUrl(`./src/assets/재료/${baguetteToastFile(level)}`);
+  slices.querySelectorAll('.roast-slice, .roast-whole').forEach((img) => {
+    img.src = src;
+    img.dataset.toast = String(level);
+  });
+}
+
+function applyFireSprite(band, force = false) {
+  const fire = $('#fireImg');
+  if (!fire) return;
+  if (!force && band === lastFireBand && fire.dataset.band === band) return;
+  lastFireBand = band;
+  fire.dataset.band = band;
+  fire.alt = bandLabel(band);
+  // 캐시/동일 경로 이슈 방지: 강제 리로드
+  const base = fireSrcFor(band, ASSET_VER);
+  fire.src = force ? `${base}&r=${Date.now()}` : base;
+}
+
+function syncFireTestButtons() {
+  const wrap = $('#fireTestBtns');
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-fire-test]').forEach((btn) => {
+    btn.classList.toggle('is-on', btn.dataset.fireTest === roastHeat.band);
+  });
+}
+
+function forceFireBand(band) {
+  const heat = band === 'low' ? 18 : band === 'high' ? 85 : 50;
+  roastHeat.heat = heat;
+  roastHeat.band = band;
+  roastHeat.debugLock = true;
+  applyFireSprite(band, true);
+  syncHeatUi();
+  $('#micStatus').textContent = `테스트 고정 · ${bandLabel(band)} (다시 플레이하려면 성공/실수로 넘어가기)`;
+}
+
+function syncHeatUi() {
+  const cursor = $('#heatCursor');
+  const target = $('#heatTarget');
+  const matchFill = $('#heatMatchFill');
+  const targetLabel = $('#heatTargetLabel');
+  const nowLabel = $('#heatNowLabel');
+  const hint = $('#heatLabel');
+  const blowFx = $('#blowFx');
+
+  if (cursor) cursor.style.left = `${roastHeat.heat}%`;
+  if (target) {
+    const w = Math.max(8, roastHeat.targetMax - roastHeat.targetMin);
+    target.style.left = `${roastHeat.targetMin}%`;
+    target.style.width = `${w}%`;
+  }
+  if (matchFill) {
+    const pct = Math.min(100, (roastHeat.matchTime / Math.max(1, roastHeat.needMatch)) * 100);
+    matchFill.style.width = `${pct}%`;
+  }
+  if (targetLabel) targetLabel.textContent = `목표 ${bandLabel(roastHeat.targetBand)}`;
+  if (nowLabel) nowLabel.textContent = `지금 ${bandLabel(roastHeat.band)}`;
+  if (hint) {
+    const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
+    hint.textContent = inZone
+      ? '좋아요! 목표 구간 유지 중'
+      : roastHeat.heat < roastHeat.targetMin
+        ? '더 불어 불을 키우세요'
+        : '조금 쉬며 불을 낮추세요';
+  }
+
+  applyFireSprite(roastHeat.band);
+  syncFireTestButtons();
+
+  if (blowFx) {
+    const on = Boolean(roastHeat.blowing);
+    if (on) blowFx.hidden = false;
+    blowFx.classList.toggle('is-on', on);
+    if (!on && !roastArmed) blowFx.hidden = true;
   }
 }
 
 function hideRoastStage() {
   const stage = $('#roastStage');
   if (stage) stage.hidden = true;
+  const rhythm = $('#heatRhythm');
+  if (rhythm) rhythm.hidden = true;
   const gauge = $('#heatGauge');
   if (gauge) gauge.hidden = true;
+  const blowFx = $('#blowFx');
+  if (blowFx) {
+    blowFx.classList.remove('is-on');
+    blowFx.hidden = true;
+  }
   $('.counter-scene')?.classList.remove('is-roasting');
   stopRoastHeat(roastHeat);
   roastArmed = false;
+  const testBtns = $('#fireTestBtns');
+  if (testBtns) testBtns.hidden = true;
 }
 
-/** 굽기: 프라이팬 + 이전 썰기 횟수만큼 단면 + 불/게이지 */
+function hideBoilStage() {
+  const stage = $('#boilStage');
+  if (stage) stage.hidden = true;
+  stage?.classList.remove('is-bubbling', 'boil-hot', 'boil-med', 'boil-low');
+  $('.counter-scene')?.classList.remove('is-boiling');
+  boilArmed = false;
+  boilProgress = 0;
+  boilLevel = -1;
+}
+
+function syncBoilFx() {
+  const stage = $('#boilStage');
+  if (!stage) return;
+  const p = boilProgress / Math.max(0.001, BOIL_NEED_SEC);
+  const level = p >= 0.66 ? 2 : p >= 0.33 ? 1 : 0;
+  boilLevel = level;
+  stage.classList.toggle('boil-low', level === 0);
+  stage.classList.toggle('boil-med', level === 1);
+  stage.classList.toggle('boil-hot', level === 2);
+}
+
+/** 끓이기: 물 냄비 고정 + 보글 이펙트 */
+function renderBoilStage(stepData) {
+  const stage = $('#boilStage');
+  const pot = $('#potImg');
+  const fire = $('#boilFireImg');
+  const contents = $('#boilContents');
+  if (!stage || !pot) return;
+
+  hideRoastStage();
+  stage.hidden = false;
+  stage.classList.remove('is-bubbling', 'boil-hot', 'boil-med');
+  stage.classList.add('boil-low');
+  $('.counter-scene')?.classList.add('is-boiling');
+
+  boilProgress = 0;
+  boilLevel = 0;
+  pot.src = assetUrl('./src/assets/도구/냄비_물.png');
+  pot.alt = '물 든 냄비';
+
+  if (fire) {
+    fire.src = fireSrcFor('mid', ASSET_VER);
+    fire.dataset.band = 'mid';
+    fire.alt = '중불';
+  }
+
+  const ids = (stepData?.ingredients || []).filter(Boolean);
+  const layout = [
+    { x: -14, y: -6, rot: -12 },
+    { x: 12, y: 4, rot: 10 },
+    { x: -2, y: 12, rot: 3 },
+    { x: 16, y: -8, rot: -6 },
+    { x: -18, y: 8, rot: 14 },
+    { x: 6, y: -2, rot: -4 },
+  ];
+  if (contents) {
+    const bits = [];
+    let bitI = 0;
+    for (const ingredientId of ids) {
+      const wholeFile = ingredientAsset(ingredientId);
+      const faceFile = wholeFile ? crossSectionFrom(wholeFile) : null;
+      const file = faceFile || wholeFile;
+      if (!file) continue;
+      const n = Math.min(2, Math.max(1, getIngredientCuts(state, ingredientId, 2)));
+      for (let i = 0; i < n; i++) {
+        const L = layout[bitI % layout.length];
+        bits.push(`<img class="boil-bit" src="${assetUrl(`./src/assets/재료/${file}`)}" alt="" draggable="false"
+          style="--x:${L.x}%;--y:${L.y}%;--rot:${L.rot}deg;--i:${bitI};height:26%;max-width:26%;opacity:.9" />`);
+        bitI += 1;
+      }
+    }
+    contents.innerHTML = bits.join('');
+  }
+
+  boilArmed = true;
+  if (!animationId) {
+    lastFrameTs = 0;
+    animationId = requestAnimationFrame(tickLiveMic);
+  }
+
+  $('#stationIcon').hidden = true;
+  $('#micStatus').textContent = '마이크 켜고 「보글보글」 · 물이 끓어요';
+  $('#stepHint').textContent = `목표 소리 “${stepData.targetPattern}” · ${stepData.hint || '보글보글 하면 기포가 세져요'}`;
+}
+
+/** 굽기: 프라이팬 + 이전 썰기 횟수만큼 단면 + 불/리듬 게이지 */
 function renderRoastStage(stepData) {
   const stage = $('#roastStage');
   const pan = $('#panImg');
   const slices = $('#roastSlices');
   const fire = $('#fireImg');
+  const rhythm = $('#heatRhythm');
   const gauge = $('#heatGauge');
   if (!stage || !pan || !slices) return;
 
+  hideBoilStage();
   const ingredientId = primaryIngredient(stepData);
-  const wholeFile = ingredientAsset(ingredientId);
-  const faceFile = wholeFile ? crossSectionFrom(wholeFile) : null;
   const n = getIngredientCuts(state, ingredientId, 3);
 
   stage.hidden = false;
-  if (gauge) gauge.hidden = false;
+  if (rhythm) rhythm.hidden = false;
+  if (gauge) gauge.hidden = true;
   $('.counter-scene')?.classList.add('is-roasting');
   pan.src = assetUrl('./src/assets/도구/프라이팬.png');
   pan.alt = '프라이팬';
 
   resetRoastHeat(roastHeat);
   lastFireBand = '';
-  if (fire) {
-    fire.src = fireSrcFor('mid', ASSET_VER);
-    fire.dataset.band = 'mid';
-    fire.alt = '중불';
-  }
+  lastToastLevel = 0;
+  applyFireSprite('mid', true);
   syncHeatUi();
   roastArmed = true;
+  const testBtns = $('#fireTestBtns');
+  if (testBtns) testBtns.hidden = false;
   if (!animationId) {
     lastFrameTs = 0;
     animationId = requestAnimationFrame(tickLiveMic);
   }
 
-  if (faceFile) {
-    slices.innerHTML = Array.from({ length: n }, (_, i) => {
-      const t = n <= 1 ? 0.5 : i / (n - 1);
-      const angle = -28 + t * 56;
-      const x = (t - 0.5) * 42;
-      const y = Math.abs(t - 0.5) * 10;
-      return `<img class="roast-slice" src="${assetUrl(`./src/assets/재료/${faceFile}`)}" alt="" draggable="false"
-        style="--x:${x}%;--y:${y}%;--rot:${angle}deg;--i:${i}" />`;
-    }).join('');
-  } else if (wholeFile) {
-    slices.innerHTML = `<img class="roast-whole" src="${assetUrl(`./src/assets/재료/${wholeFile}`)}" alt="" draggable="false" />`;
+  const sliceSrc = roastSliceSrc(ingredientId, roastHeat);
+  if (sliceSrc && (ingredientId === 'baguette' || ingredientAsset(ingredientId))) {
+    if (ingredientId === 'baguette' || crossSectionFrom(ingredientAsset(ingredientId))) {
+      slices.innerHTML = Array.from({ length: n }, (_, i) => {
+        const t = n <= 1 ? 0.5 : i / (n - 1);
+        const angle = -28 + t * 56;
+        const x = (t - 0.5) * 42;
+        const y = Math.abs(t - 0.5) * 10;
+        return `<img class="roast-slice" src="${sliceSrc}" alt="" draggable="false"
+          data-toast="${ingredientId === 'baguette' ? 0 : ''}"
+          style="--x:${x}%;--y:${y}%;--rot:${angle}deg;--i:${i}" />`;
+      }).join('');
+      lastToastLevel = ingredientId === 'baguette' ? 0 : -1;
+    } else {
+      slices.innerHTML = `<img class="roast-whole" src="${sliceSrc}" alt="" draggable="false" />`;
+    }
   } else {
     slices.innerHTML = '';
   }
 
   $('#stationIcon').hidden = true;
-  $('#micStatus').textContent = `마이크 켜고 「후우~」 · ${n}조각 · 지금 ${bandLabel(roastHeat.band)}`;
-  $('#stepHint').textContent = `목표 소리 “${stepData.targetPattern}” · 불어 강불, 가만히 있으면 약불`;
+  $('#micStatus').textContent = ingredientId === 'baguette'
+    ? `마이크 켜고 「후우~」 · 단면→굽1→2→3 · ${n}조각`
+    : `마이크 켜고 「후우~」 · 점선=목표 화력 · ${n}조각`;
+  $('#stepHint').textContent = ingredientId === 'baguette'
+    ? '목표 화력에 맞추면 단면이 점점 구워집니다 · 굽3이 완성'
+    : '위 점선 구간에 불길을 맞추세요 · 중→약→강으로 목표가 바뀝니다';
 }
 
 async function runCannedCut() {
   const knife = $('#knifeHand');
   const board = $('#cutBoard');
-  await playCannedCut(cutSession, { knifeEl: knife, boardEl: board });
+  await playCannedCut(cutSession, {
+    knifeEl: knife,
+    boardEl: board,
+    onProgress: (session) => {
+      if (!multiplayer.connected || !multiplayer.isMyTurn) return;
+      multiplayer.sendActivity({
+        knifeX: session.knifeX,
+        actualCuts: session.actualCuts,
+        cutDone: session.cutDone,
+      });
+    },
+  });
 }
 
 async function finishVoiceCut() {
@@ -351,6 +710,7 @@ function showScreen(name) {
   if (name === 'restaurant') renderRestaurantExterior();
   document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.dataset.screen === name));
   window.scrollTo(0, 0);
+  if (name === 'game') scheduleFitGameStage();
 }
 
 function renderPlayers() {
@@ -482,11 +842,21 @@ function renderGame() {
   }
 
   const current = getCurrent(state);
+  $('#stationLabel').textContent = `${current.course.name} / ${stationLabel(current)}`;
+  $('#playerLabel').textContent = `${getPlayer(state)}의 차례`;
+  $('#stepTitle').textContent = current.title;
+  $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
+  applyTurnPermissions();
   const counterScene = $('.counter-scene');
+  const gameStage = $('#gameStage');
   counterScene.classList.add('has-kitchen-background');
   counterScene.classList.toggle('is-cutting', isCuttingStep(current));
   counterScene.classList.toggle('is-roasting', isRoastingStep(current));
   counterScene.classList.toggle('is-finishing', isFinishStep(current));
+  counterScene.classList.toggle('is-boiling', isBoilingStep(current));
+  gameStage?.classList.toggle('is-cutting', isCuttingStep(current));
+  gameStage?.classList.toggle('is-roasting', isRoastingStep(current));
+  gameStage?.classList.toggle('is-boiling', isBoilingStep(current));
 
   const kitchenBg = $('#kitchenBg');
   kitchenBg.src = assetUrl(`./src/assets/배경/${kitchenBackgroundFor(current)}`);
@@ -502,8 +872,24 @@ function renderGame() {
   if (isCuttingStep(current) && ingredientFile) {
     hideFinishStage();
     hideRoastStage();
+    hideBoilStage();
     cutIngredient.hidden = true;
     $('#stationIcon').hidden = true;
+    const passHand = $('#passHand');
+    if (passHand) {
+      passHand.hidden = true;
+      passHand.classList.remove('is-on-board', 'is-pushing');
+    }
+    const cutStack = $('#cutStack');
+    const boardImg = $('#cuttingBoardImg');
+    if (cutStack) {
+      cutStack.hidden = false;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
+    if (boardImg) {
+      boardImg.src = assetUrl('./src/assets/도구/도마.png');
+      boardImg.hidden = false;
+    }
     knife.src = assetUrl('./src/assets/도구/오른손_칼.png');
     resetCutSession(cutSession, {
       ingredientFile,
@@ -512,6 +898,7 @@ function renderGame() {
       cutCount: 3,
     });
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    cutBoard.classList.remove('is-passing-out', 'is-entering');
     renderCutBoard(cutBoard, cutSession);
     attachKnifeToTomato(cutBoard, knife, 0);
     cutSession.knifeX = 0;
@@ -523,8 +910,13 @@ function renderGame() {
   } else if (isRoastingStep(current)) {
     hideFinishStage();
     peakArmed = false;
+    hideBoilStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
-    cutBoard.hidden = true;
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
     cutBoard.innerHTML = '';
     knife.hidden = true;
     knife.classList.remove('knife-hand--on-tomato', 'chopping');
@@ -546,10 +938,35 @@ function renderGame() {
     renderFinishStage(current);
   } else {
     hideFinishStage();
+  }
+
+  if (isBoilingStep(current)) {
+    hideFinishStage();
     peakArmed = false;
     hideRoastStage();
     if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
-    cutBoard.hidden = true;
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
+    cutBoard.innerHTML = '';
+    knife.hidden = true;
+    knife.classList.remove('knife-hand--on-tomato', 'chopping');
+    cutIngredient.hidden = true;
+    counterScene.classList.remove('is-zoomed');
+    setListening(cutSession, false);
+    renderBoilStage(current);
+  } else if (!isCuttingStep(current) && !isRoastingStep(current) && !isFinishStep(current)) {
+    peakArmed = false;
+    hideRoastStage();
+    hideBoilStage();
+    if (knife.parentElement !== counterScene) counterScene.appendChild(knife);
+    const cutStack = $('#cutStack');
+    if (cutStack) {
+      cutStack.hidden = true;
+      cutStack.classList.remove('is-passing-out', 'is-entering');
+    }
     cutBoard.innerHTML = '';
     knife.hidden = true;
     knife.classList.remove('knife-hand--on-tomato', 'chopping');
@@ -569,18 +986,16 @@ function renderGame() {
     $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
   }
 
-  if (!isRoastingStep(current)) {
+  if (!isRoastingStep(current) && !isBoilingStep(current)) {
     $('#stationIcon').textContent = TYPE_ICON[current.type];
   }
-  $('#stationLabel').textContent = `${current.course.name} / ${stationLabel(current)}`;
-  $('#playerLabel').textContent = `${getPlayer(state)}의 차례`;
-  $('#stepTitle').textContent = current.title;
-  $('#stepCount').textContent = `${state.currentStep + 1} / ${steps.length}`;
-  applyTurnPermissions();
+  scheduleFitGameStage();
 }
 
 function applySharedSnapshot(snapshot) {
   const game = snapshot.game;
+  const previousStepIndex = state.currentStep;
+  const previousStep = getSteps(state)[previousStepIndex];
   const shared = game.sharedState || {};
   if (shared.day != null) state.day = shared.day;
   if (shared.money != null) state.money = shared.money;
@@ -593,8 +1008,15 @@ function applySharedSnapshot(snapshot) {
   state.results = game.results.map((accuracy, index) => ({ ...getSteps(state)[index], accuracy }));
   state.ingredientCuts = { ...game.ingredientCuts };
   state.finished = state.currentStep >= getSteps(state).length;
+  if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
   renderGame();
   showScreen(state.finished ? 'result' : 'game');
+  const currentStep = getCurrent(state);
+  if (state.currentStep === previousStepIndex + 1
+    && isCuttingStep(previousStep)
+    && isCuttingStep(currentStep)) {
+    void playBoardEnter();
+  }
 }
 
 function applyTurnPermissions() {
@@ -617,6 +1039,7 @@ function commitStep(accuracy) {
   }
   submitStep(state, accuracy);
   renderGame();
+  scheduleFitGameStage();
 }
 
 function renderResult() {
@@ -694,6 +1117,11 @@ on($('#missBtn'), 'click', async () => {
   stopLiveMic();
   if (isFinishStep(getCurrent(state))) await playFinishTestEffect(45);
   commitStep(45);
+});
+on($('#fireTestBtns'), 'click', (event) => {
+  const btn = event.target.closest('[data-fire-test]');
+  if (!btn || !roastArmed) return;
+  forceFireBand(btn.dataset.fireTest);
 });
 on($('#nextDayBtn'), 'click', () => {
   startNextDay(state);
@@ -824,8 +1252,8 @@ function stopLiveMic() {
   $('#voiceBar').style.width = '0%';
   $('#micBtn').textContent = '마이크 켜기';
   $('#micBtn').disabled = false;
-  // 굽기 중이면 게이지 하락 루프는 유지
-  if (!roastArmed && animationId) {
+  // 굽기/끓이기/마무리 중이면 게이지·진행 루프는 유지
+  if (!roastArmed && !boilArmed && !finishArmed && animationId) {
     cancelAnimationFrame(animationId);
     animationId = null;
   }
@@ -839,7 +1267,7 @@ function volumePercentFromAnalyser(freq) {
 }
 
 function tickLiveMic(ts) {
-  if (!micOn && !roastArmed && !finishArmed) return;
+  if (!micOn && !roastArmed && !finishArmed && !boilArmed) return;
 
   const dt = lastFrameTs ? Math.min(0.05, (ts - lastFrameTs) / 1000) : 0.016;
   lastFrameTs = ts;
@@ -863,19 +1291,77 @@ function tickLiveMic(ts) {
     multiplayer.sendActivity({
       volume: volumePercent,
       knifeX: isCuttingStep(current) ? cutSession.knifeX : null,
+      actualCuts: isCuttingStep(current) ? cutSession.actualCuts : null,
+      cutDone: isCuttingStep(current) ? cutSession.cutDone : null,
       heat: isRoastingStep(current) ? roastHeat.heat : null,
       band: isRoastingStep(current) ? roastHeat.band : null,
+      boilProgress: isBoilingStep(current) ? boilProgress : null,
+      boilLevel: isBoilingStep(current) ? boilLevel : null,
+      finish: isFinishStep(current) ? {
+        targetIndex: finishSession.targetIndex,
+        targetHz: finishSession.targetHz,
+        hold: finishSession.hold,
+        pitchHz: finishSession.pitchHz,
+        cents: finishSession.cents,
+        isPouring: finishSession.isPouring,
+        phaseElapsed: finishSession.phaseElapsed,
+        reachedAt: finishSession.reachedAt,
+        phaseScores: finishSession.phaseScores,
+        complete: finishSession.complete,
+      } : null,
     });
+  }
+
+  if (boilArmed && isBoilingStep(current)) {
+    const bubbling = micOn && volumePercent >= 14;
+    const stage = $('#boilStage');
+    stage?.classList.toggle('is-bubbling', bubbling);
+    if (bubbling) boilProgress = Math.min(BOIL_NEED_SEC, boilProgress + dt);
+    else boilProgress = Math.max(0, boilProgress - dt * 0.15);
+    syncBoilFx();
+    const labels = ['약하게', '보글보글', '팔팔'];
+    if (micOn) {
+      $('#micStatus').textContent = bubbling
+        ? `${labels[boilLevel] || '보글'} · ${Math.round((boilProgress / BOIL_NEED_SEC) * 100)}%`
+        : `더 「보글보글」 해요 · ${labels[Math.max(0, boilLevel)] || '약하게'}`;
+    }
+    if (boilProgress >= BOIL_NEED_SEC) {
+      const score = 88;
+      hideBoilStage();
+      stopLiveMic();
+      $('#micStatus').textContent = `수프 완성 · ${score}점`;
+      commitStep(score);
+      return;
+    }
   }
 
   if (roastArmed && isRoastingStep(current)) {
     const blowVol = micOn ? volumePercent : 0;
     tickRoastHeat(roastHeat, blowVol, dt);
     syncHeatUi();
+    const ingId = primaryIngredient(current);
+    syncRoastToastVisuals(ingId);
     if (micOn) {
+      const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
+      const toastBit = ingId === 'baguette' ? ` · ${toastStatusLabel(roastToastLevel(roastHeat))}` : '';
       $('#micStatus').textContent = roastHeat.blowing
-        ? `후우~ 불 키우는 중 · ${bandLabel(roastHeat.band)} (${Math.round(roastHeat.heat)}%)`
-        : `가만히면 약불로… · ${bandLabel(roastHeat.band)} (${Math.round(roastHeat.heat)}%)`;
+        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ✓' : ''}${toastBit}`
+        : `쉬면 천천히 약불로… · 목표 ${bandLabel(roastHeat.targetBand)}${toastBit}`;
+    }
+    if (roastHeat.done) {
+      if (ingId === 'baguette') {
+        lastToastLevel = 0;
+        roastHeat.matchTime = roastHeat.needMatch;
+        syncRoastToastVisuals(ingId);
+      }
+      const score = roastAccuracy(roastHeat);
+      hideRoastStage();
+      stopLiveMic();
+      $('#micStatus').textContent = ingId === 'baguette'
+        ? `바게트 굽3 완성 · ${score}점`
+        : `굽기 완료 · ${score}점`;
+      commitStep(score);
+      return;
     }
   }
 
@@ -883,7 +1369,7 @@ function tickLiveMic(ts) {
     const pitch = micOn && wave
       ? detectPitch(wave, audioContext?.sampleRate || 48000)
       : { frequency: 0, confidence: 0 };
-    tickFinish(finishSession, pitch, dt);
+    if (micOn) tickFinish(finishSession, pitch, dt);
     syncFinishUi();
     if (micOn) {
       $('#micStatus').textContent = finishSession.rawPitchHz
@@ -942,7 +1428,7 @@ function tickLiveMic(ts) {
     }
   }
 
-  if (micOn || roastArmed) animationId = requestAnimationFrame(tickLiveMic);
+  if (micOn || roastArmed || boilArmed || finishArmed) animationId = requestAnimationFrame(tickLiveMic);
   else animationId = null;
 }
 
@@ -954,7 +1440,9 @@ $('#micBtn').addEventListener('click', async () => {
         ? '일시정지 · 다시 켜면 칼이 이어서 이동'
         : roastArmed
           ? '마이크 끔 · 게이지는 약불로 내려감'
-          : '마이크를 켜거나 테스트 입력을 사용하세요.';
+          : boilArmed
+            ? '마이크 끔 · 보글보글이 약해져요'
+            : '마이크를 켜거나 테스트 입력을 사용하세요.';
       return;
     }
 
@@ -970,7 +1458,7 @@ $('#micBtn').addEventListener('click', async () => {
     const source = audioContext.createMediaStreamSource(liveStream);
     analyser = audioContext.createAnalyser();
     analyser.fftSize = finishArmed ? 2048 : 512;
-    analyser.smoothingTimeConstant = roastArmed ? 0.45 : 0.25;
+    analyser.smoothingTimeConstant = (roastArmed || boilArmed) ? 0.45 : 0.25;
     source.connect(analyser);
 
     micOn = true;
@@ -991,6 +1479,9 @@ $('#micBtn').addEventListener('click', async () => {
     } else if (finishArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '음정을 듣는 중 · 주황색 목표 구간에 맞춰보세요.';
+    } else if (boilArmed) {
+      stopTakSpeech();
+      $('#micStatus').textContent = '「보글보글」 · 기포가 올라와요';
     } else {
       $('#micStatus').textContent = '볼륨 측정 중 (이 공정은 버튼으로 진행)';
     }
