@@ -28,6 +28,13 @@ const FIRE_SRC = {
   high: './src/assets/불/강불.png',
 };
 
+/** 끓이기: 약불→잔잔 / 중불→보글 / 강불→격렬 (파일: 물·물1·물2) */
+const POT_WATER_SRC = {
+  low: './src/assets/도구/냄비_물.png',
+  mid: './src/assets/도구/냄비_물1.png',
+  high: './src/assets/도구/냄비_물2.png',
+};
+
 export function createRoastHeat() {
   return {
     heat: HEAT_START,
@@ -55,6 +62,10 @@ export function heatBand(heat) {
 
 export function fireSrcFor(band, assetVer = '1') {
   return `${FIRE_SRC[band] || FIRE_SRC.mid}?${assetVer}`;
+}
+
+export function potWaterSrcFor(band, assetVer = '1') {
+  return `${POT_WATER_SRC[band] || POT_WATER_SRC.mid}?${assetVer}`;
 }
 
 export function bandLabel(band) {
