@@ -415,39 +415,49 @@ export function createMenuForGuest(guest, random = Math.random) {
   const targetAction = bonusTypeToAction(guest.bonusType);
   const guestLevel = guest.level; // 1, 2, 3
 
-  // bonusType에 해당하는 step이 있는 음식들 필터링
-  const matchingRecipes = RECIPE_CATALOG.filter((recipe) =>
-    recipe.steps.some((s) => s.action === targetAction)
-  );
-
-  if (matchingRecipes.length === 0) {
-    return createStarterMenu();
-  }
-
-  // 게스트 난이도와 동일한 레벨의 음식들만 선택
+  // 게스트 난이도에 맞는 음식 레벨
   const levelMap = { 1: 'easy', 2: 'normal', 3: 'hard' };
   const targetRecipeLevel = levelMap[guestLevel];
-  
-  const filteredRecipes = matchingRecipes.filter(
-    (recipe) => recipe.level === targetRecipeLevel
-  );
 
-  // 난이도에 맞는 음식이 없으면 모든 매칭 음식 사용
-  const selectedRecipes = filteredRecipes.length > 0 ? filteredRecipes : matchingRecipes;
-
-  // 랜덤하게 4개 코스 선택 (중복 가능)
-  const courses = [];
+  // 카테고리 순서
   const categoryOrder = ['appetizer', 'starter', 'main', 'dessert'];
-  
-  for (let i = 0; i < 4; i++) {
-    const randomRecipe = selectedRecipes[Math.floor(random() * selectedRecipes.length)];
-    if (randomRecipe) {
+  const courses = [];
+
+  for (const category of categoryOrder) {
+    // 각 카테고리에서 bonusType과 난이도에 맞는 음식 필터링
+    let categoryRecipes = RECIPE_CATALOG.filter(
+      (recipe) =>
+        recipe.category === category &&
+        recipe.level === targetRecipeLevel &&
+        recipe.steps.some((s) => s.action === targetAction)
+    );
+
+    // 난이도에 맞는 음식이 없으면 같은 카테고리의 모든 음식 사용
+    if (categoryRecipes.length === 0) {
+      categoryRecipes = RECIPE_CATALOG.filter(
+        (recipe) =>
+          recipe.category === category &&
+          recipe.steps.some((s) => s.action === targetAction)
+      );
+    }
+
+    // 그래도 없으면 같은 카테고리의 모든 음식 (보너스 타입 상관없이)
+    if (categoryRecipes.length === 0) {
+      categoryRecipes = RECIPE_CATALOG.filter(
+        (recipe) => recipe.category === category
+      );
+    }
+
+    // 랜덤으로 하나 선택
+    if (categoryRecipes.length > 0) {
+      const randomRecipe =
+        categoryRecipes[Math.floor(random() * categoryRecipes.length)];
       courses.push(toCourse(randomRecipe));
     }
   }
 
-  // 코스가 없으면 기본 메뉴 반환
-  if (courses.length === 0) {
+  // 코스가 4개 미만이면 기본 메뉴 반환
+  if (courses.length < 4) {
     return createStarterMenu();
   }
 
