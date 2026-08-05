@@ -280,7 +280,7 @@ export const RECIPE_CATALOG = [
     level: 'easy',
     steps: [
       step('cutting', ['chicken'], { title: '닭 자르기', targetPattern: '콰직!', hint: '힘 있게 손질하세요.' }),
-      step('roasting', ['chicken'], { title: '치킨 오븐구이', targetPattern: '치이이익', hint: '속까지 익히세요.' }),
+      step('oven', ['치킨_오븐'], { title: '치킨 오븐구이', targetPattern: '치이이익', hint: '속까지 익히세요.' }),
       step('boiling', ['sauce'], { title: '그레이비 소스 졸이기', targetPattern: '후~~~~', hint: '천천히 졸이세요.', boilAsset: '스테이크 플레이트_1.png' }),
     ],
   },
@@ -318,7 +318,7 @@ export const RECIPE_CATALOG = [
     steps: [
       step('cutting', ['beef'], { title: '소고기 손질', targetPattern: '스으윽~', hint: '결을 따라 손질하세요.' }),
       step('cutting', ['mushroom'], { title: '양송이 버섯 다지기', targetPattern: '찹찹찹찹', hint: '잘게 다지세요.' }),
-      step('roasting', ['pastry'], { title: '페이스트리 굽기', targetPattern: '치이이익', hint: '바삭하게 구우세요.' }),
+      step('oven', ['페이스트리_오븐'], { title: '페이스트리 굽기', targetPattern: '치이이익', hint: '바삭하게 구우세요.' }),
       step('boiling', ['sauce'], { title: '소스 졸이기', targetPattern: '후~~~~', hint: '천천히 졸이세요.', boilAsset: '안심 웰링턴_1.png' }),
     ],
   },
@@ -355,7 +355,7 @@ export const RECIPE_CATALOG = [
     level: 'normal',
     steps: [
       step('cutting', ['butter'], { title: '버터 조각내기', targetPattern: '탁·탁·탁', hint: '고르게 조각내세요.' }),
-      step('roasting', ['pastry'], { title: '오븐에서 굽기', targetPattern: '치이이익', hint: '노릇하게 구우세요.' }),
+      step('oven', ['블루베리크럼블_오븐'], { title: '오븐에서 굽기', targetPattern: '치이이익', hint: '노릇하게 구우세요.' }),
       step('boiling', ['blueberry'], { title: '블루베리 잼 끓이기', targetPattern: '보글보글', hint: '농도를 유지하세요.', boilAsset: '블루베리 크럼블 케이크_1.png' }),
       step('mixing', ['flour'], { title: '크럼블 반죽 섞기', targetPattern: '후루룩', mixingAsset: '크럼블반죽_보울안', hint: '고슬고슬하게 섞으세요.' }),
     ],
@@ -368,7 +368,7 @@ export const RECIPE_CATALOG = [
     level: 'hard',
     steps: [
       step('cutting', ['chocolate'], { title: '다크 초콜릿 조각내기', targetPattern: '콰직!', hint: '작은 조각으로 나누세요.' }),
-      step('roasting', ['chocolate'], { title: '라바 케이크 오븐 굽기', targetPattern: '치이이익', hint: '가운데는 촉촉하게 구우세요.' }),
+      step('oven', ['라바케이크_오븐'], { title: '라바 케이크 오븐 굽기', targetPattern: '치이이익', hint: '가운데는 촉촉하게 구우세요.' }),
       step('boiling', ['butter', 'chocolate'], { title: '버터와 초콜릿 중탕 끓이기', targetPattern: '보글보글', hint: '천천히 녹이세요.', boilAsset: '초콜릿 라바케이크_1.png' }),
       step('mixing', ['flour'], { title: '달걀과 밀가루 반죽 섞기', targetPattern: '후루룩', mixingAsset: '달걀과밀가루_보울안', hint: '덩어리 없이 섞으세요.' }),
       step('sprinkling', ['sugar'], { title: '슈가파우더 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'powder', sprinklePourAsset: '슈가파우더', hint: '목표 음을 2초간 유지하세요.' }),

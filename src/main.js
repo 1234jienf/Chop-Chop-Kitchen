@@ -794,23 +794,11 @@ function renderOvenStage(stepData) {
   $('.counter-scene')?.classList.add('is-oven');
 
   // 오븐 내부에 재료 이미지를 표시 (오븐 전용 파일명 우선)
-  try {
-    // Use a screen-fixed container so ingredients are positioned relative to the viewport,
-    // not the transformed .oven-stage. Create it if missing.
-    let screenContents = $('#ovenContentsScreen');
-    if (!screenContents) {
-      screenContents = document.createElement('div');
-      screenContents.id = 'ovenContentsScreen';
-      screenContents.className = 'oven-contents-screen';
-      document.body.appendChild(screenContents);
-    }
-    // keep the original in-stage container empty to avoid duplicates
-    const inStage = $('#ovenContents');
-    if (inStage) inStage.innerHTML = '';
-
-    const files = stepData?.ovenFiles || [];
-    const ingIds = stepData?.ingredients || [];
-    screenContents.innerHTML = '';
+  const contents = $('#ovenContents');
+  const files = stepData?.ovenFiles || [];
+  const ingIds = stepData?.ingredients || [];
+  if (contents) {
+    contents.innerHTML = '';
     files.forEach((fileName, idx) => {
       const img = document.createElement('img');
       img.className = 'oven-ingredient';
@@ -835,16 +823,15 @@ function renderOvenStage(stepData) {
       item.className = 'oven-item';
       item.style.position = 'relative';
       item.style.display = 'inline-block';
-      item.style.zIndex = '30'; // above many scene elements when screen-fixed
-      const horiz = (idx - (files.length-1)/2) * 8;
-      // size the ingredient to 0.9 scale as requested
-      const scaleVal = 0.9;
-      item.style.transform = `translateX(${horiz}%) scale(${scaleVal})`;
+      item.style.zIndex = '30';
+      const horiz = (idx - (files.length - 1) / 2) * 8;
+      item.style.setProperty('--oven-item-x', `${horiz}%`);
+      item.style.transform = 'translateX(var(--oven-item-x)) scale(var(--oven-item-scale, 0.9))';
       item.style.transformOrigin = '50% 100%';
       item.appendChild(img);
-      screenContents.appendChild(item);
+      contents.appendChild(item);
     });
-  } catch (e) { console.error('oven render error', e); }
+  }
 
   // 레시피별 제한시간을 사용하고, 없으면 기본 25초로 작동
   ovenVisualDuration = (typeof stepData?.ovenVisualDuration === 'number')
@@ -2403,7 +2390,7 @@ function tickLiveMic(ts) {
     if (mixingImg) {
       const offset = getMixingOffset(mixingSession);
       const rotation = getMixingRotation(mixingSession);
-      const contentYOffset = 12;
+      const contentYOffset = -20;
       const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
       const baseX = bowlPos.x + offset.x;
       const baseY = bowlPos.y + contentYOffset + offset.y;

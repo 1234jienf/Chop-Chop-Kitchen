@@ -854,54 +854,45 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   position:absolute;
   z-index:4;
   left:50%;
-  /* moved up by 10% as requested (screen basis) */
-  top:40%;
-  /* base width (used to compute explicit width/height) */
-  --oven-base-width: min(90%, 684px);
-  /* increase by 20% over previous 400% / 180% -> now 480% / 216% */
-  --oven-scale-x: 4.8; /* width multiplier (480%) */
-  --oven-scale-y: 2.16; /* height multiplier (216%) */
-  /* set explicit width/height so children are not distorted by transform scale */
+  top:46%;
+  /* 오븐 내부 기준 박스(재료 배치 기준). 필요 시 이 값들만 조절하세요. */
+  --oven-base-width: min(84%, 640px);
+  --oven-scale-x: 1.6;
+  --oven-scale-y: 1.7;
   width: calc(var(--oven-base-width) * var(--oven-scale-x));
   height: calc(var(--oven-base-width) * var(--oven-scale-y));
   transform: translate(-50%,-50%);
   pointer-events:none;
-  overflow:hidden; /* ���� ���ʸ� ���̵��� �ڸ��� */
+  overflow:hidden;
 }
 .oven-stage[hidden]{display:none!important}
 .oven-contents{
   position:absolute;
   left:50%;
-  /* position anchored to bottom of glass so food sits on the oven floor */
-  bottom:8%;
-  transform:translateX(-50%);
-  /* glass �������� ũ�� ���� */
-  width:30%;
+  /* 재료 위치/크기 커스텀 포인트 */
+  top:72%;
+  transform:translate(-50%,-50%);
+  width:42%;
   display:flex;
   flex-wrap:wrap;
   justify-content:center;
   align-items:flex-end;
-  gap:6px;
-  z-index:3; /* behind oven light */
+  gap:8px;
+  z-index:3;
 }
 .oven-contents::before{
   /* removed yellow/bright sparkle per request */
   display:none;
 }
 .oven-contents::after{
-  content:'';
-  position:absolute;
-  inset:0;
-  background:rgba(0,0,0,0.35);
-  z-index:2;
-  pointer-events:none;
-  border-radius:24px;
+  display:none;
 }
 .oven-item{
   display:inline-block;
   position:relative;
   width:100%;
-  max-width:220px;
+  max-width:190px;
+  --oven-item-scale: 1.5;
 }
 .oven-item img.oven-ingredient{
   width:100%;
@@ -909,13 +900,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   display:block;
 }
 .oven-item::after{
-  content:'';
-  position:absolute;
-  left:0; right:0; top:0; bottom:0;
-  background:rgba(0,0,0,0.3); /* 30% ������ ������ */
-  z-index:4;
-  pointer-events:none;
-  border-radius:8px;
+  display:none;
 }
 .oven-light{
   position:absolute;
@@ -1852,5 +1837,3 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   z-index:6!important;
   pointer-events:none;
 }
-
-
