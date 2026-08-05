@@ -133,7 +133,7 @@ async def multiplayer_socket(ws: WebSocket):
                 if not room.started or room.order[room.current_step % 3] != player.id:
                     await error(ws, "현재 조리 담당자만 공정을 완료할 수 있습니다.")
                     continue
-                room.results.append(max(0, min(100, int(message.get("accuracy", 0)))))
+                room.results.append(max(20, min(100, int(message.get("accuracy", 0)))))
                 room.current_step += 1
                 room.ingredient_cuts.update(message.get("ingredientCuts") or {})
             elif kind == "activity":

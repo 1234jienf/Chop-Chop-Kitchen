@@ -46,6 +46,7 @@ export function createRoastHeat() {
     scriptIndex: 0,
     segmentLeft: TARGET_SCRIPT[0][1],
     matchTime: 0,
+    totalInZoneTime: 0,
     needMatch: 10,
     blowing: false,
     active: false,
@@ -118,7 +119,10 @@ export function tickRoastHeat(session, volumePercent, dtSec) {
   session.band = heatBand(session.heat);
 
   const inZone = session.heat >= session.targetMin && session.heat <= session.targetMax;
-  if (inZone) session.matchTime += dtSec;
+  if (inZone) {
+    session.matchTime += dtSec;
+    session.totalInZoneTime += dtSec;
+  }
   else session.matchTime = Math.max(0, session.matchTime - dtSec * 0.35);
 
   if (session.matchTime >= session.needMatch) {
@@ -135,6 +139,7 @@ export function resetRoastHeat(session) {
   session.segmentLeft = TARGET_SCRIPT[0][1];
   session.elapsed = 0;
   session.matchTime = 0;
+  session.totalInZoneTime = 0;
   session.needMatch = 10;
   session.blowing = false;
   session.done = false;
@@ -150,7 +155,7 @@ export function stopRoastHeat(session) {
 }
 
 export function roastAccuracy(session) {
-  if (!session) return 70;
-  const ratio = Math.min(1, session.matchTime / Math.max(1, session.needMatch));
-  return Math.round(55 + ratio * 40);
+  if (!session) return 20;
+  const stayRatio = Math.min(1, session.totalInZoneTime / Math.max(0.001, session.elapsed));
+  return Math.round(20 + Math.min(1, stayRatio / 0.9) * 80);
 }
