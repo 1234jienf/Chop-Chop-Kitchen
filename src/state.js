@@ -1,4 +1,5 @@
 import { GUESTS, PLAYERS, STARTER_MENU } from './data.js?v=55';
+import { calculateDayResult } from './dayresult.js?v=3';
 
 const flattenSteps = (menu) =>
   menu.courses.flatMap((course) => course.steps.map((process) => ({ ...process, course })));
@@ -25,7 +26,8 @@ export const getPlayer = (state) => state.players[state.currentStep % state.play
 
 export function submitStep(state, accuracy) {
   if (state.finished) return;
-  state.results.push({ ...getCurrent(state), accuracy });
+  const boundedAccuracy = Math.max(20, Math.min(100, Math.round(Number(accuracy) || 0)));
+  state.results.push({ ...getCurrent(state), accuracy: boundedAccuracy });
   state.currentStep += 1;
   state.finished = state.currentStep >= getSteps(state).length;
 }
@@ -41,12 +43,7 @@ export function getIngredientCuts(state, ingredientId, fallback = 3) {
 }
 
 export function calculateResult(state) {
-  const base = state.results.reduce((s, r) => s + r.accuracy, 0) / state.results.length;
-  const matching = state.results.filter((r) => r.type === state.guest.bonusType);
-  const conditionMet = matching.length > 0 && matching.every((r) => r.accuracy >= 70);
-  const score = Math.min(100, Math.round(base + (conditionMet ? 5 : 0)));
-  const stars = Math.max(1, Math.min(5, Math.ceil(score / 20)));
-  return { score, stars, revenue: 300 + stars * 150, conditionMet };
+  return calculateDayResult(state);
 }
 
 export function startNextDay(state) {

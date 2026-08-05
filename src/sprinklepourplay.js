@@ -201,10 +201,11 @@ export function tickFinish(session, pitch, dt) {
   }
 }
 
-/** 10초 안에는 100→60점, 제한시간 이후에는 59→30점으로 내려간다. */
+/** 5초 이내에는 100점, 이후 초당 5점 감점하며 최저 20점을 보장한다. */
 function scoreForReachTime(reachedAt, reachSeconds) {
-  if (reachedAt <= reachSeconds) return Math.round(100 - (reachedAt / reachSeconds) * 40);
-  return Math.max(30, Math.round(60 - (reachedAt - reachSeconds) * 3));
+  const fullScoreSeconds = 5;
+  if (reachedAt <= fullScoreSeconds) return 100;
+  return Math.max(20, Math.round(100 - (reachedAt - fullScoreSeconds) * 5));
 }
 
 export function finishAccuracy(session) {

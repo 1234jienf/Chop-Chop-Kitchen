@@ -133,7 +133,7 @@ export function tickMixing(session, volumePercent, dtSec) {
   }
   
   // 대본을 완벽하게 읽었으면 즉시 완료
-  if (session.scriptMatchProgress >= 0.8) {
+  if (session.scriptMatchProgress >= 0.85) {
     session.done = true;
     session.active = false;
     return;
@@ -188,13 +188,8 @@ export function stopMixing(session) {
  * 현재 정확도 점수 반환 (0~100)
  */
 export function getMixingScore(session) {
-  if (session.accuracyHistory.length === 0) return 100;
-  
-  // 평균 정확도 계산
-  const avgAccuracy = session.accuracyHistory.reduce((sum, h) => sum + h.accuracy, 0) / session.accuracyHistory.length;
-  
-  // 혹은 마지막 정확도 반환
-  return Math.round(session.accuracy);
+  const matchRatio = Math.max(0, Math.min(1, session.scriptMatchProgress || 0));
+  return Math.round(20 + matchRatio * 80);
 }
 
 /**

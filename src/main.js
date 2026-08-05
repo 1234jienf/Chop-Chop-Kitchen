@@ -16,7 +16,7 @@ import {
   rememberIngredientCuts,
   startNextDay,
   submitStep,
-} from './state.js?v=55';
+} from './state.js?v=58';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -43,7 +43,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js?v=86';
+} from './cutplay.js?v=88';
 import {
   bandLabel,
   createRoastHeat,
@@ -54,7 +54,7 @@ import {
   roastToastStage,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js?v=52';
+} from './roastheat.js?v=54';
 import {
   createMixingSession,
   DEFAULT_SCRIPT,
@@ -67,7 +67,7 @@ import {
   startMixing,
   stopMixing,
   tickMixing,
-} from './mixing.js?v=51';
+} from './mixing.js?v=53';
 import {
   createFinishSession,
   detectPitch,
@@ -79,10 +79,12 @@ import {
   reachTimeLeft,
   stopFinishSession,
   tickFinish,
-} from './sprinklepourplay.js?v=51';
+} from './sprinklepourplay.js?v=53';
 import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=51';
 import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
 import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=12';
+import { requestGuestReviews } from './dayreview.js?v=2';
+import { renderReceipt, renderReceiptLoading } from './receipt.js?v=2';
 
 const $ = (s) => document.querySelector(s);
 const state = createGameState();
@@ -177,7 +179,7 @@ let ovenArmed = false;
 let ovenStartTimer = null;
 let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
 let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
-let ovenAcceptWindow = 1.2; // 허용 오차(초)
+let ovenAcceptWindow = 1; // 허용 오차(초)
 let ovenElapsed = 0;
 let ovenStopped = false;
 let ovenUserStopAt = null; // 사용자가 띵을 외친 시각(초)
@@ -203,10 +205,12 @@ let boilProgress = 0;
 let tmBoostUntil = 0;
 let tmHuuUntil = 0;
 let tmChapUntil = 0;
+let boilElapsed = 0;
 let boilLevel = -1;
 /** 끓이기 불 테스트 고정 (약/중/강) */
 let boilFireLock = null;
 const BOIL_NEED_SEC = 9;
+const BOIL_LIMIT_SEC = 30;
 
 let mixingArmed = false;
 const mixingSession = createMixingSession();
@@ -637,6 +641,7 @@ function hideBoilStage() {
   $('.counter-scene')?.classList.remove('is-boiling');
   boilArmed = false;
   boilProgress = 0;
+  boilElapsed = 0;
   boilLevel = -1;
   boilFireLock = null;
   const testBtns = $('#fireTestBtns');
@@ -999,21 +1004,21 @@ function startMixingSpeech() {
     let chunk = '';
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const result = event.results[i];
-      for (let a = 0; a < result.length; a++) {
-        chunk += ` ${result[a]?.transcript || ''}`;
-      }
+      chunk += ` ${result[0]?.transcript || ''}`;
     }
     chunk = chunk.trim();
 
     // 인식된 텍스트를 기반으로 대본 일치도 계산
     if (chunk && mixingSession.guideScript) {
       const targetScript = mixingSession.guideScript;
+      const normalizedTarget = targetScript.replace(/[^\p{L}\p{N}]/gu, '');
+      const normalizedChunk = chunk.replace(/[^\p{L}\p{N}]/gu, '');
       let matchCount = 0;
-      for (let i = 0; i < Math.min(chunk.length, targetScript.length); i++) {
-        if (chunk[i] === targetScript[i]) matchCount++;
+      for (let i = 0; i < Math.min(normalizedChunk.length, normalizedTarget.length); i++) {
+        if (normalizedChunk[i] === normalizedTarget[i]) matchCount++;
       }
       mixingSession.recognizedText = chunk;
-      mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / targetScript.length);
+      mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / Math.max(1, normalizedTarget.length));
 
       // 가이드 텍스트 색상 업데이트
       const guideText = document.getElementById('mixingGuideText');
@@ -1056,6 +1061,7 @@ function renderBoilStage(stepData) {
   $('.counter-scene')?.classList.add('is-boiling');
 
   boilProgress = 0;
+  boilElapsed = 0;
   boilLevel = 0;
   pot.src = assetUrl('./src/assets/도구/냄비_물.png');
   pot.alt = '물 든 냄비';
@@ -1195,7 +1201,7 @@ function renderMixingStage(stepData) {
   // 점수 표시
   const scoreDisplay = $('#mixingScore');
   if (scoreDisplay) {
-    scoreDisplay.textContent = '100%';
+    scoreDisplay.textContent = '50%';
   }
 
   mixingArmed = true;
@@ -1726,9 +1732,20 @@ function commitStep(accuracy) {
   scheduleFitGameStage();
 }
 
-function renderResult() {
-  const result = calculateResult(state); const review = result.score >= 85 ? '셰프들의 호흡이 훌륭했습니다. 각 코스의 개성이 살아 있는 멋진 저녁이었어요.' : result.score >= 65 ? '조금 흔들린 순간도 있었지만, 팀워크가 돋보이는 기분 좋은 코스였습니다.' : '재료는 좋았지만 주방의 호흡을 조금 더 맞추면 훨씬 근사해질 것 같아요.';
-  $('#reviewPanel').innerHTML = `<div class="stars">${'★'.repeat(result.stars)}${'☆'.repeat(5 - result.stars)}</div><h2>${result.score}점</h2><blockquote>“${review}”</blockquote><p class="muted">손님 요구 ${result.conditionMet ? '충족 · 보너스 +5점' : '미충족'} · 오늘의 매출 +${result.revenue}G</p>`;
+let resultRenderToken = 0;
+async function renderResult() {
+  const token = ++resultRenderToken;
+  const result = calculateResult(state);
+  const panel = $('#reviewPanel');
+  const nextButton = $('#nextDayBtn');
+  nextButton.disabled = true;
+  nextButton.textContent = '손님 심사 중…';
+  renderReceiptLoading(panel, result);
+  const reviews = await requestGuestReviews(result);
+  if (token !== resultRenderToken || !state.finished) return;
+  renderReceipt(panel, result, reviews);
+  nextButton.disabled = false;
+  nextButton.textContent = '정산하고 다음 날 →';
 }
 
 document.addEventListener('click', (event) => {
@@ -1798,16 +1815,16 @@ on($('#successBtn'), 'click', async () => {
     await runCannedCut();
     return;
   }
-  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(90);
-  commitStep(90);
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(80);
+  commitStep(80);
 });
 on($('#missBtn'), 'click', async () => {
   try { stopOvenSpeech(); } catch (_) {}
   hideOvenStage();
   hideMixingStage();
   stopLiveMic();
-  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(45);
-  commitStep(45);
+  if (isFinishStep(getCurrent(state))) await playFinishTestEffect(20);
+  commitStep(20);
 });
 on($('#fireTestBtns'), 'click', (event) => {
   const btn = event.target.closest('[data-fire-test]');
@@ -2099,6 +2116,7 @@ function tickLiveMic(ts) {
   }
 
   if (boilArmed && isBoilingStep(current)) {
+    boilElapsed += dt;
     const tmBubble = performance.now() < tmChapUntil || performance.now() < tmBoostUntil;
     const bubbling = micOn && (volumePercent >= 14 || tmBubble);
     const stage = $('#boilStage');
@@ -2113,10 +2131,20 @@ function tickLiveMic(ts) {
         : `더 「보글보글」 해요 · ${labels[Math.max(0, boilLevel)] || '약하게'}`;
     }
     if (boilProgress >= BOIL_NEED_SEC) {
-      const score = 88;
+      const score = boilElapsed <= 13
+        ? 100
+        : Math.max(20, Math.round(100 - (boilElapsed - 13) * 3));
       hideBoilStage();
       stopLiveMic();
       $('#micStatus').textContent = `수프 완성 · ${score}점`;
+      commitStep(score);
+      return;
+    }
+    if (boilElapsed >= BOIL_LIMIT_SEC) {
+      const score = 20;
+      hideBoilStage();
+      stopLiveMic();
+      $('#micStatus').textContent = `끓이기 시간 초과 · ${score}점`;
       commitStep(score);
       return;
     }
@@ -2173,7 +2201,9 @@ function tickLiveMic(ts) {
       const userAt = ovenUserStopAt != null ? ovenUserStopAt : ovenElapsed;
       const diffToTarget = Math.abs(userAt - (ovenTargetTime || 0));
       const success = diffToTarget <= (ovenAcceptWindow || 0);
-      const score = Math.round(Math.max(40, 95 - diffToTarget * 30));
+      const score = diffToTarget <= 0.25
+        ? 100
+        : Math.max(20, Math.round(100 - (diffToTarget - 0.25) * 25));
       // cleanup speech listener specifically
       try { stopOvenSpeech(); } catch (_) {}
       hideOvenStage();
@@ -2186,7 +2216,7 @@ function tickLiveMic(ts) {
     if (ovenElapsed >= ovenVisualDuration) {
       // 시간이 다 흘렀고 사용자가 못맞춘 경우: 실패
       const diff = Math.abs(ovenElapsed - (ovenTargetTime || 0));
-      const score = Math.round(Math.max(20, 60 - diff * 20));
+      const score = 20;
       try { stopOvenSpeech(); } catch (_) {}
       hideOvenStage();
       stopLiveMic();
@@ -2274,7 +2304,7 @@ function tickLiveMic(ts) {
     const mixState = getMixingState(mixingSession);
     const scoreDisplay = $('#mixingScore');
     if (scoreDisplay) {
-      scoreDisplay.textContent = `${Math.round(mixState.accuracy)}%`;
+      scoreDisplay.textContent = `${mixState.score}%`;
     }
 
     // 보울 모션 업데이트
@@ -2300,7 +2330,10 @@ function tickLiveMic(ts) {
     }
 
     if (micOn) {
-      $('#micStatus').textContent = `섞기 중 · 정확도 ${Math.round(mixState.accuracy)}% · 시간 ${Math.round(mixState.elapsed)}/${Math.round(mixState.totalDuration)}초`;
+      const verdict = mixingSession.scriptMatchProgress >= 0.85
+        ? '성공'
+        : mixingSession.scriptMatchProgress <= 0.2 ? '실패' : '부분 성공';
+      $('#micStatus').textContent = `섞기 중 · ${verdict} · 문구 점수 ${mixState.score}% · 시간 ${Math.round(mixState.elapsed)}/${Math.round(mixState.totalDuration)}초`;
     }
 
     if (mixState.done) {
