@@ -670,6 +670,43 @@ function syncBoilFx() {
   stage.classList.toggle('boil-hot', level === 2);
   applyBoilFireSprite(band);
   syncFireTestButtons(band);
+
+  // boilAsset이 있으면 레벨에 따라 이미지 업데이트
+  const current = getCurrent(state);
+  if (current?.boilAsset) {
+    updateBoilPotImage(current.boilAsset, level);
+  }
+}
+
+/** boilAsset을 기반으로 현재 레벨에 맞는 냄비 이미지 업데이트 */
+function updateBoilPotImage(baseAsset, level) {
+  const pot = $('#potImg');
+  if (!pot) return;
+
+  // 기본 파일명에서 숫자 추출 (예: '클램 차우더_1.png' → '클램 차우더', 1)
+  const match = baseAsset.match(/^(.+?)_(\d+)\.png$/);
+  if (!match) {
+    // 숫자가 없으면 기본 파일 사용
+    pot.src = assetUrl(`./src/assets/끓이기/${baseAsset}`);
+    return;
+  }
+
+  const basename = match[1];
+  const targetNum = level + 1; // level 0→1, 1→2, 2→3
+
+  // 시도할 이미지 번호 (우선순위: targetNum → targetNum-1 → ... → 1)
+  let finalNum = targetNum;
+  for (let i = targetNum; i >= 1; i--) {
+    const candidate = `${basename}_${i}.png`;
+    // 현재는 존재 여부를 확인할 수 없으므로, 나중에 로드 실패 시 fallback 처리
+    // 일단 계산된 번호로 시도
+    finalNum = i;
+    break;
+  }
+
+  const filename = `${basename}_${finalNum}.png`;
+  pot.src = assetUrl(`./src/assets/끓이기/${filename}`);
+  pot.alt = filename;
 }
 
 function hideMixingStage() {
@@ -1063,8 +1100,15 @@ function renderBoilStage(stepData) {
   boilProgress = 0;
   boilElapsed = 0;
   boilLevel = 0;
-  pot.src = assetUrl('./src/assets/도구/냄비_물.png');
-  pot.alt = '물 든 냄비';
+
+  // boilAsset이 있으면 해당 이미지 사용, 없으면 기본 냄비_물 사용
+  if (stepData?.boilAsset) {
+    pot.src = assetUrl(`./src/assets/끓이기/${stepData.boilAsset}`);
+    pot.alt = stepData.boilAsset;
+  } else {
+    pot.src = assetUrl('./src/assets/도구/냄비_물.png');
+    pot.alt = '물 든 냄비';
+  }
 
   if (fire) {
     fire.src = fireSrcFor('low', ASSET_VER);
