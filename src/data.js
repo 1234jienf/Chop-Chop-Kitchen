@@ -398,6 +398,66 @@ export function createStarterMenu() {
   };
 }
 
+/** bonusType에 해당하는 step action 반환 */
+function bonusTypeToAction(bonusType) {
+  const map = {
+    'cut': 'cutting',
+    'grill': 'roasting',
+    'boil': 'boiling',
+    'mix': 'mixing',
+    'sprinklePour': 'sprinkling',
+  };
+  return map[bonusType] || null;
+}
+
+/** 게스트의 bonusType과 난이도를 기반으로 메뉴 생성 */
+export function createMenuForGuest(guest, random = Math.random) {
+  const targetAction = bonusTypeToAction(guest.bonusType);
+  const guestLevel = guest.level; // 1, 2, 3
+
+  // bonusType에 해당하는 step이 있는 음식들 필터링
+  const matchingRecipes = RECIPE_CATALOG.filter((recipe) =>
+    recipe.steps.some((s) => s.action === targetAction)
+  );
+
+  if (matchingRecipes.length === 0) {
+    return createStarterMenu();
+  }
+
+  // 게스트 난이도와 동일한 레벨의 음식들만 선택
+  const levelMap = { 1: 'easy', 2: 'normal', 3: 'hard' };
+  const targetRecipeLevel = levelMap[guestLevel];
+  
+  const filteredRecipes = matchingRecipes.filter(
+    (recipe) => recipe.level === targetRecipeLevel
+  );
+
+  // 난이도에 맞는 음식이 없으면 모든 매칭 음식 사용
+  const selectedRecipes = filteredRecipes.length > 0 ? filteredRecipes : matchingRecipes;
+
+  // 랜덤하게 4개 코스 선택 (중복 가능)
+  const courses = [];
+  const categoryOrder = ['appetizer', 'starter', 'main', 'dessert'];
+  
+  for (let i = 0; i < 4; i++) {
+    const randomRecipe = selectedRecipes[Math.floor(random() * selectedRecipes.length)];
+    if (randomRecipe) {
+      courses.push(toCourse(randomRecipe));
+    }
+  }
+
+  // 코스가 없으면 기본 메뉴 반환
+  if (courses.length === 0) {
+    return createStarterMenu();
+  }
+
+  return {
+    id: 'dynamic',
+    name: `${guest.bonusType} 메뉴`,
+    courses,
+  };
+}
+
 export const STARTER_MENU = createStarterMenu();
 export const MENUS = [STARTER_MENU];
 
