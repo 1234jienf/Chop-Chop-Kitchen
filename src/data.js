@@ -426,6 +426,13 @@ export function getGuestLevel(state) {
   return Math.max(1, Math.min(3, Math.floor(dayLevel)));
 }
 
+function guestDemandForMenu(guest, menu) {
+  const courseNames = (menu?.courses || []).map((course) => course.name).filter(Boolean).join(' · ');
+  const menuText = courseNames || '오늘 메뉴';
+  const actionText = TYPE_LABEL[guest.bonusType] || guest.bonusType;
+  return `${menuText}가 포함된 오늘 코스에서 ${actionText}이 잘 맞으면 보너스!`;
+}
+
 export function getGuestsForLevel(level) {
   const target = Math.max(1, Math.min(3, Number(level) || 1));
   return GUESTS.filter((guest) => guest.level === target);
