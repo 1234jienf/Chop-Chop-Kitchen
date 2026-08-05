@@ -385,17 +385,20 @@ function toCourse(recipe) {
 }
 
 /** 시작 추천: 브루스케타 + 미네스트로네 + 스테이크 + 애플 타르트 */
-export const STARTER_MENU = {
-  id: 'starter',
-  name: '시작 추천 4코스',
-  courses: [
-    toCourse(byKo('브루스케타')),
-    toCourse(byKo('미네스트로네')),
-    toCourse(byKo('스테이크 플레이트')),
-    toCourse(byKo('애플 타르트')),
-  ],
-};
+export function createStarterMenu() {
+  return {
+    id: 'starter',
+    name: '시작 추천 4코스',
+    courses: [
+      toCourse(byKo('브루스케타')),
+      toCourse(byKo('미네스트로네')),
+      toCourse(byKo('스테이크 플레이트')),
+      toCourse(byKo('애플 타르트')),
+    ],
+  };
+}
 
+export const STARTER_MENU = createStarterMenu();
 export const MENUS = [STARTER_MENU];
 
 export const GUESTS = [
@@ -438,10 +441,18 @@ export function getGuestsForLevel(level) {
   return GUESTS.filter((guest) => guest.level === target);
 }
 
-export function pickGuestForLevel(level, random = Math.random) {
+export function pickGuestForLevel(level, menu, random = Math.random) {
+  if (typeof menu === 'function') {
+    random = menu;
+    menu = null;
+  }
   const pool = getGuestsForLevel(level);
-  if (!pool.length) return GUESTS[0];
-  return pool[Math.floor(random() * pool.length)];
+  const chosen = pool.length ? pool[Math.floor(random() * pool.length)] : GUESTS[0];
+  if (!menu) return chosen;
+  return {
+    ...chosen,
+    demand: guestDemandForMenu(chosen, menu),
+  };
 }
 
 export function ingredientAsset(ingredientId) {
