@@ -2403,7 +2403,7 @@ function tickLiveMic(ts) {
     if (mixingImg) {
       const offset = getMixingOffset(mixingSession);
       const rotation = getMixingRotation(mixingSession);
-      const contentYOffset = 8;
+      const contentYOffset = 12;
       const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
       const baseX = bowlPos.x + offset.x;
       const baseY = bowlPos.y + contentYOffset + offset.y;

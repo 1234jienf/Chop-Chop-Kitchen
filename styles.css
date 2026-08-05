@@ -1,4 +1,4 @@
-﻿:root{--ink:#19120d;--brown:#2b1d15;--paper:#fff7e8;--cream:#f4e5cb;--orange:#ed762f;--yellow:#f6bd48;--red:#b94231;--green:#637b55;--muted:#93806e;--line:#d9c9b3}*{box-sizing:border-box}html,body,#app{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,"Noto Sans KR",sans-serif;color:var(--ink)}body{background:#15100c}button,input{font:inherit}.screen{display:none;position:relative;min-height:100vh;overflow:hidden}
+:root{--ink:#19120d;--brown:#2b1d15;--paper:#fff7e8;--cream:#f4e5cb;--orange:#ed762f;--yellow:#f6bd48;--red:#b94231;--green:#637b55;--muted:#93806e;--line:#d9c9b3}*{box-sizing:border-box}html,body,#app{margin:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,"Noto Sans KR",sans-serif;color:var(--ink)}body{background:#15100c}button,input{font:inherit}.screen{display:none;position:relative;min-height:100vh;overflow:hidden}
 .screen.active{display:flex}
 html,body{height:auto;overflow-y:auto}
 body:has(.game-screen.active){overflow:hidden;height:100%}
@@ -324,7 +324,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   100%{transform:scale(1)}
 }
 
-/* 칼: 재료보다 아래쪽, 「탁」에 내려치기 */
+/* Į: ��Ẹ�� �Ʒ���, ��Ź���� ����ġ�� */
 .knife-hand.knife-hand--on-tomato{
   position:absolute!important;
   left:var(--knife-t,0%)!important;
@@ -352,7 +352,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   100%{transform:translateX(-50%) rotate(-18deg) translateY(0)}
 }
 
-/* 「탁」 임팩트 이펙트 */
+/* ��Ź�� ����Ʈ ����Ʈ */
 .chop-fx{
   position:absolute;
   top:48%;
@@ -437,7 +437,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   text-shadow:0 1px 2px #000a;
 }
 
-/* 리듬 판정 팝업 */
+/* ���� ���� �˾� */
 .cut-judge{
   position:absolute;
   top:8%;
@@ -527,7 +527,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 /* Roast: align pan BOWL (not image center) with burner + fire */
 .roast-stage{
   --bowl-x: 50%;
-  --pan-shift: -14.5%; /* PNG 손잡이 때문에 팬 본체 ~64%에 있음 → 중앙으로 */
+  --pan-shift: -14.5%; /* PNG ������ ������ �� ��ü ~64%�� ���� �� �߾����� */
   position:absolute;
   z-index:4;
   left:50%;
@@ -748,7 +748,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 /* legacy side gauge hidden in favor of rhythm strip */
 .heat-gauge{display:none!important}
 
-/* 1인칭 바람(숨) 이펙트 — 화면 아래에서 스토브로 */
+/* 1��Ī �ٶ�(��) ����Ʈ ? ȭ�� �Ʒ����� ������ */
 .blow-fx{
   position:absolute;
   inset:0;
@@ -866,7 +866,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   height: calc(var(--oven-base-width) * var(--oven-scale-y));
   transform: translate(-50%,-50%);
   pointer-events:none;
-  overflow:hidden; /* 오븐 안쪽만 보이도록 자르기 */
+  overflow:hidden; /* ���� ���ʸ� ���̵��� �ڸ��� */
 }
 .oven-stage[hidden]{display:none!important}
 .oven-contents{
@@ -875,7 +875,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   /* position anchored to bottom of glass so food sits on the oven floor */
   bottom:8%;
   transform:translateX(-50%);
-  /* glass 기준으로 크기 조정 */
+  /* glass �������� ũ�� ���� */
   width:30%;
   display:flex;
   flex-wrap:wrap;
@@ -912,7 +912,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   content:'';
   position:absolute;
   left:0; right:0; top:0; bottom:0;
-  background:rgba(0,0,0,0.3); /* 30% 검은색 가림막 */
+  background:rgba(0,0,0,0.3); /* 30% ������ ������ */
   z-index:4;
   pointer-events:none;
   border-radius:8px;
@@ -1069,7 +1069,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   background-position:center;
 }
 .oven-dial-wrap{
-  position:fixed; /* screen 기준 위치 */
+  position:fixed; /* screen ���� ��ġ */
   right:20%;
   bottom:15%;
   width:130px;
@@ -1083,8 +1083,8 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   bottom:50%;
   width:4px;
   height:48%;
-  transform-origin:50% 100%; /* 바늘의 회전 축: 아래쪽 중심 */
-  background:#e63b3b; /* 빨간색 침 */
+  transform-origin:50% 100%; /* �ٴ��� ȸ�� ��: �Ʒ��� �߽� */
+  background:#e63b3b; /* ������ ħ */
   border-radius:2px;
   z-index:7;
   transition:transform .06s linear;
@@ -1108,7 +1108,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   transform-origin:center 62%;
 }
 
-/* 오븐 타겟 마커 */
+/* ���� Ÿ�� ��Ŀ */
 #ovenDial .oven-target{
   position:absolute;
   left:50%;
@@ -1119,12 +1119,12 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   display:none !important;
 }
 
-/* Boil: pot on burner — 불은 버너(냄비 아래)에, 화면 하단으로 빠지지 않게 */.boil-stage{
+/* Boil: pot on burner ? ���� ����(���� �Ʒ�)��, ȭ�� �ϴ����� ������ �ʰ� */.boil-stage{
   --bowl-x: 50%;
   position:absolute;
   z-index:4;
   left:50%;
-  top:56%;
+  top:60%;
   transform:translate(-50%,-50%);
   width:min(58%,420px);
   aspect-ratio:1.15;
@@ -1132,7 +1132,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   overflow:hidden;
 }
 .boil-stage[hidden]{display:none!important}
-/* 굽기 불과 비슷한 높이(버너) · 냄비 바닥 밑 */
+/* ���� �Ұ� ����� ����(����) �� ���� �ٴ� �� */
 .boil-stage .fire-img{
   left:50%;
   bottom:18%;
@@ -1181,7 +1181,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   0%,100%{transform:translate(-50%,-50%) rotate(var(--rot,0deg)) translateY(0)}
   50%{transform:translate(-50%,-50%) rotate(var(--rot,0deg)) translateY(-4px)}
 }
-/* 보글 이펙트 — 냄비_물 고정, CSS로 기포/김 */
+/* ���� ����Ʈ ? ����_�� ����, CSS�� ����/�� */
 .boil-fx{
   position:absolute;
   left:50%;
@@ -1425,7 +1425,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   transform-origin:center 55%;
 }
 
-/* Separate 도마 + ingredient stack */
+/* Separate ���� + ingredient stack */
 .cut-stack{
   position:absolute;
   z-index:4;
@@ -1471,7 +1471,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   100%{transform:translate(-50%,-50%) rotate(0deg); opacity:1}
 }
 
-/* 도마 위 — 정자세(세운 손), 왼→오로 도마와 함께 이동 */
+/* ���� �� ? ���ڼ�(���� ��), �ޡ���� ������ �Բ� �̵� */
 .cut-stack .pass-hand{
   position:absolute;
   z-index:8;
@@ -1747,7 +1747,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   100%{ transform:translateX(-50%) scale(1); }
 }
 
-/* 발음별 칼 방향 */
+/* ������ Į ���� */
 .knife-hand.knife-hand--on-tomato.chopping-tak{animation:knifeChopTomato .22s cubic-bezier(.2,.8,.2,1)}
 .knife-hand.knife-hand--on-tomato.chopping-ssuk{animation:knifeSliceSsuk .42s ease-in-out}
 .knife-hand.knife-hand--on-tomato.chopping-ssak{animation:knifeScrapeSsak .28s ease-out}
@@ -1769,12 +1769,12 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   50%{transform:translateX(-50%) rotate(-38deg) translateY(20px)}
 }
 
-/* 발음별 이펙트 */
+/* ������ ����Ʈ */
 .chop-fx-ssuk:before{width:78px;height:4px;margin-top:0;background:linear-gradient(90deg,transparent,#fff8e0,#ffb060,transparent);box-shadow:0 0 12px #ffd080cc}
 .chop-fx-ssak:before{transform:translate(-50%,-50%) rotate(-35deg)}
 .chop-fx-chap:after{width:36px;height:36px}
 
-/* 가이드: 슥=가로선 */
+/* ���̵�: ��=���μ� */
 .guide-ssuk{border-left-style:solid!important;border-left-color:rgba(120,200,255,.5)!important}
 .guide-ssuk:after{
   content:"";position:absolute;left:50%;top:50%;width:36px;height:0;
@@ -1783,7 +1783,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 .guide-ssak{border-left-color:rgba(255,180,120,.55)!important}
 .guide-chap .cut-guide-syl{letter-spacing:-0.08em}
 
-/* 슥 홀드 링 */
+/* �� Ȧ�� �� */
 .cut-hold-ring{
   position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
   border-radius:50%;pointer-events:none;
@@ -1794,7 +1794,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 }
 .cut-guide.is-holding .cut-hold-ring{opacity:.95}
 
-/* 발음별 단면/조각 */
+/* ������ �ܸ�/���� */
 .burst-clip{position:relative;overflow:visible}
 .slice-edge{
   position:absolute;top:0;bottom:0;width:6px;left:-3px;z-index:2;
@@ -1818,7 +1818,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 .knife-hand.knife-hand--on-tomato[data-cut-mode="Ssak"]{transform:translateX(-50%) rotate(-28deg)}
 .knife-hand.knife-hand--on-tomato[data-cut-mode="Chap"]{transform:translateX(-50%) rotate(-24deg) scale(0.96)}
 
-/* 고정 도마 — 컷해도 가이드/재료 위치 안 튐 */
+/* ���� ���� ? ���ص� ���̵�/��� ��ġ �� Ʀ */
 .cut-arena--fixed{
   position:relative;
   margin:0 auto;
@@ -1852,4 +1852,5 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   z-index:6!important;
   pointer-events:none;
 }
+
 

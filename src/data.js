@@ -82,6 +82,12 @@ export const INGREDIENT_ASSETS = {
   garlic: '마늘.png',
   garnish: '가니쉬.png',
   crouton: '크루통.png',
+  // Oven-specific ingredients (files in ./src/assets/오븐/)
+  '타르트반죽_오븐': '타르트반죽_오븐.png',
+  '라바케이크_오븐': '라바케이크_오븐.png',
+  '치킨_오븐': '치킨_오븐.png',
+  '블루베리크럼블_오븐': '블루베리크럼블_오븐.png',
+  '페이스트리_오븐': '페이스트리_오븐.png',
 };
 
 export const INGREDIENT_LABEL = {
@@ -124,9 +130,9 @@ export const INGREDIENT_LABEL = {
 };
 
 /**
- * @param {'cutting'|'boiling'|'roasting'|'putting'|'mixing'|'sprinkling'} action
+ * @param {'cutting'|'boiling'|'roasting'|'putting'|'mixing'|'sprinkling'|'oven'} action
  * @param {string[]} ingredients
- * @param {{ title?: string, targetPattern: string, hint: string, mixingAsset?: string, boilAsset?: string, ovenTargetTime?: number, ovenVisualDuration?: number, ovenAcceptWindow?: number }} meta
+ * @param {{ title?: string, targetPattern: string, hint: string, mixingAsset?: string, boilAsset?: string, ovenFiles?: string[], ovenTargetTime?: number, ovenVisualDuration?: number, ovenAcceptWindow?: number }} meta
  */
 export function step(action, ingredients, meta) {
   const list = Array.isArray(ingredients) ? ingredients : [ingredients];
