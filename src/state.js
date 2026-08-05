@@ -3,7 +3,7 @@ import {
   createStarterMenu,
   getGuestLevel,
   pickGuestForLevel,
-} from './data.js?v=58';
+} from './data.js?v=59';
 import { calculateDayResult } from './dayresult.js?v=3';
 
 const flattenSteps = (menu) =>

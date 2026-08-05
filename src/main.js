@@ -5,7 +5,7 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=58';
+} from './data.js?v=59';
 import {
   calculateResult,
   createGameState,
@@ -175,6 +175,8 @@ let roastArmed = false;
 let finishArmed = false;
 let boilArmed = false;
 let ovenArmed = false;
+/** 스테이션 클로즈업에 들어가 있는지 (맵 ↔ 1인칭) */
+let inStation = false;
 let ovenStartTimer = null;
 let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
 let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
@@ -1311,9 +1313,99 @@ function renderRestaurantExterior() {
 
 function showScreen(name) {
   if (name === 'restaurant') renderRestaurantExterior();
+  if (name === 'kitchen-map') renderKitchenMap();
   document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.dataset.screen === name));
   window.scrollTo(0, 0);
   if (name === 'game') scheduleFitGameStage();
+}
+
+const MAP_STATION_POS = {
+  boil: { x: '35%', y: '55%' },
+  grill: { x: '52%', y: '55%' },
+  cut: { x: '48%', y: '70%' },
+  mix: { x: '70%', y: '60%' },
+  finish: { x: '48%', y: '87%' },
+};
+
+function mapStationIdForStep(step) {
+  if (!step) return null;
+  switch (step.action) {
+    case 'cutting': return 'cut';
+    case 'boiling': return 'boil';
+    case 'roasting':
+    case 'oven': return 'grill';
+    case 'mixing': return 'mix';
+    case 'putting':
+    case 'sprinkling': return 'finish';
+    default: return 'cut';
+  }
+}
+
+function openKitchenMap() {
+  inStation = false;
+  peakArmed = false;
+  roastArmed = false;
+  finishArmed = false;
+  boilArmed = false;
+  ovenArmed = false;
+  mixingArmed = false;
+  try { stopLiveMic(); } catch (_) {}
+  try { stopOvenSpeech(); } catch (_) {}
+  try { hideOvenStage(); } catch (_) {}
+  try { hideMixingStage(); } catch (_) {}
+  try { hideRoastStage(); } catch (_) {}
+  try { hideBoilStage(); } catch (_) {}
+  try { hideFinishStage(); } catch (_) {}
+  showScreen('kitchen-map');
+}
+
+function enterCurrentStation() {
+  const current = getCurrent(state);
+  if (!current || state.finished) return;
+  inStation = true;
+  renderGame();
+  showScreen('game');
+}
+
+function renderKitchenMap() {
+  const steps = getSteps(state);
+  const current = getCurrent(state);
+  const nextId = mapStationIdForStep(current);
+  const doneIds = new Set(
+    steps.slice(0, state.currentStep).map(mapStationIdForStep).filter(Boolean),
+  );
+
+  const dayEl = $('#mapDayLabel');
+  const stepEl = $('#mapStepLabel');
+  const mission = $('#mapMission');
+  if (dayEl) dayEl.textContent = `DAY ${state.day}`;
+  if (stepEl) stepEl.textContent = `${state.currentStep + 1} / ${steps.length}`;
+  if (mission) {
+    if (!current) {
+      mission.textContent = '오늘 영업이 끝났어요';
+    } else {
+      const stationName = ACTION_LABEL[current.action] || stationLabel(current);
+      mission.textContent = `${getPlayer(state)}의 차례 · ${current.course.name} — ${current.title} (${stationName}) 스테이션을 누르세요`;
+    }
+  }
+
+  document.querySelectorAll('.map-station').forEach((btn) => {
+    const id = btn.dataset.station;
+    const isNext = id === nextId;
+    const isDone = doneIds.has(id) && !isNext;
+    btn.classList.toggle('is-next', isNext);
+    btn.classList.toggle('is-done', isDone);
+    btn.classList.toggle('is-locked', !isNext);
+    btn.disabled = !isNext;
+    btn.setAttribute('aria-current', isNext ? 'step' : 'false');
+  });
+
+  const chef = $('#mapChef');
+  const pos = MAP_STATION_POS[nextId] || { x: '48%', y: '48%' };
+  if (chef) {
+    chef.style.setProperty('--x', pos.x);
+    chef.style.setProperty('--y', pos.y);
+  }
 }
 
 function renderPlayers() {
@@ -1555,7 +1647,6 @@ function renderGame() {
     counterScene.classList.remove('is-zoomed');
     setListening(cutSession, false);
     renderRoastStage(current);
-    $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
   } else if (isOvenStep(current)) {
     peakArmed = false;
     hideBoilStage();
@@ -1685,18 +1776,34 @@ function applySharedSnapshot(snapshot) {
     ? completedCourseAt(getSteps(state), previousStepIndex)
     : null;
   if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
-  renderGame();
-  showScreen(state.finished ? 'result' : 'game');
+  if (state.finished) {
+    inStation = false;
+    renderResult();
+    showScreen('result');
+  } else if (multiplayer.connected) {
+    // 멀티는 관전 동기화를 위해 클로즈업 유지
+    inStation = true;
+    renderGame();
+    showScreen('game');
+  } else {
+    openKitchenMap();
+  }
   if (completedCourse) {
     courseCompleteView.show(completedCourse, {
       isLast: state.finished,
       nextCourse: getCurrent(state)?.course,
+      onContinue: state.finished
+        ? null
+        : () => {
+          if (!multiplayer.connected) openKitchenMap();
+        },
     });
   }
   const currentStep = getCurrent(state);
   if (state.currentStep === previousStepIndex + 1
     && isCuttingStep(previousStep)
-    && isCuttingStep(currentStep)) {
+    && isCuttingStep(currentStep)
+    && inStation) {
     void playBoardEnter();
   }
 }
@@ -1722,14 +1829,20 @@ function commitStep(accuracy) {
   const completedStepIndex = state.currentStep;
   const completedCourse = completedCourseAt(getSteps(state), completedStepIndex);
   submitStep(state, accuracy);
-  renderGame();
+  if (state.finished) {
+    inStation = false;
+    renderResult();
+    showScreen('result');
+    return;
+  }
+  openKitchenMap();
   if (completedCourse) {
     courseCompleteView.show(completedCourse, {
-      isLast: state.finished,
+      isLast: false,
       nextCourse: getCurrent(state)?.course,
+      onContinue: () => openKitchenMap(),
     });
   }
-  scheduleFitGameStage();
 }
 
 let resultRenderToken = 0;
@@ -1754,6 +1867,15 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
     showScreen(go.dataset.go);
   }
+  const stationBtn = event.target.closest('.map-station.is-next');
+  if (stationBtn) {
+    event.preventDefault();
+    enterCurrentStation();
+  }
+});
+
+on($('#backToMapBtn'), 'click', () => {
+  openKitchenMap();
 });
 
 function on(el, type, handler) {
@@ -1798,8 +1920,7 @@ on($('#confirmTeamBtn'), 'click', () => {
       $('#multiStatus').textContent = '준비 완료! 다른 셰프를 기다리는 중…';
       return;
     }
-    renderGame();
-    showScreen('game');
+    openKitchenMap();
   } catch (err) {
     console.error('게임 시작 실패:', err);
     alert(`게임 시작 오류: ${err.message}`);
@@ -2486,14 +2607,6 @@ $('#micBtn').addEventListener('click', async () => {
       ? `${msg} · HTTPS 또는 localhost에서 실행해 주세요.`
       : msg;
     stopLiveMic();
-  }
-});
-
-// 화면 전환 버튼 핸들러 (data-go 속성)
-document.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-go]');
-  if (button) {
-    showScreen(button.dataset.go);
   }
 });
 
