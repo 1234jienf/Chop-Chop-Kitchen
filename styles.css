@@ -1108,8 +1108,8 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   --bowl-x: 50%;
   position:absolute;
   z-index:4;
-  left:50%;
-  top:60%;
+  left:49%;
+  top:53%;
   transform:translate(-50%,-50%);
   width:min(58%,420px);
   aspect-ratio:1.15;
