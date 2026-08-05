@@ -194,7 +194,7 @@ export const RECIPE_CATALOG = [
       step('cutting', ['tomatoes'], { title: '토마토 썰기', targetPattern: '탁·탁·탁', hint: '균일한 간격으로 리듬을 내세요.' }),
       step('cutting', ['baguette'], { title: '바게트 썰기', targetPattern: '콰직!', hint: '강한 한 번의 피크로 썰어요.' }),
       step('roasting', ['baguette'], { title: '바게트 토스트', targetPattern: '치이이익', hint: '일정한 지속음을 유지하세요.' }),
-      step('putting', ['olive oil'], { title: '올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음을 2초간 유지하세요.' }),
+      step('putting', ['basil', 'olive oil'], { title: '바질·올리브오일 뿌리기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '올리브', hint: '목표 음을 2초간 유지하세요.' }),
     ],
   },
   {
@@ -209,7 +209,7 @@ export const RECIPE_CATALOG = [
       step('roasting', ['baguette'], { title: '빵칩 굽기', targetPattern: '치이이익', hint: '지속음으로 굽기.' }),
       step('boiling', ['sauce'], { title: '발사믹 리덕션', targetPattern: '후~~~~', hint: '길게 불어 화력을 낮추세요.' }),
       step('mixing', ['타르타르_보울안'], { title: '재료 섞기', targetPattern: '보글보글', mixingAsset: '타르타르_보울안', hint: '짧게 섞는 소리.' }),
-      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '라(A3)', targetPitch: 220, toleranceCents: 90, holdSeconds: 2, sprinklePourKind: 'liquid', sprinklePourAsset: '발사믹소스', hint: '목표 음을 2초간 유지하세요.' }),
+      step('putting', ['sauce'], { title: '발사믹 소스 붓기', targetPattern: '스으-', hint: '약하게 붓듯이.' }),
     ],
   },
   {
@@ -238,7 +238,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'starter', categoryLabel: '스타터', name: 'French Onion Soup', nameKo: '프렌치 어니언 수프', level: 'normal',
+    category: 'starter',
+    categoryLabel: '스타터',
+    name: 'French Onion Soup',
+    nameKo: '프렌치 어니언 수프',
+    level: 'normal',
     steps: [
       step('cutting', ['onion'], { title: '양파 슬라이스', targetPattern: '스으윽~', hint: '얇고 길게 썰어요.' }),
       step('cutting', ['parsley'], { title: '파슬리 썰기', targetPattern: '찹찹찹찹', hint: '잘게 다지세요.' }),
@@ -247,7 +251,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'starter', categoryLabel: '스타터', name: 'Cream of Mushroom', nameKo: '크림 오브 머쉬룸', level: 'hard',
+    category: 'starter',
+    categoryLabel: '스타터',
+    name: 'Cream of Mushroom',
+    nameKo: '크림 오브 머쉬룸',
+    level: 'hard',
     steps: [
       step('cutting', ['mushroom'], { title: '버섯 썰기', targetPattern: '사각사각', hint: '고르게 썰어요.' }),
       step('cutting', ['onion'], { title: '양파 썰기', targetPattern: '탁·탁·탁', hint: '일정하게 썰어요.' }),
@@ -258,7 +266,11 @@ export const RECIPE_CATALOG = [
     ],
   },
   {
-    category: 'main', categoryLabel: '메인', name: 'Roast Chicken', nameKo: '로스트 치킨', level: 'easy',
+    category: 'main',
+    categoryLabel: '메인',
+    name: 'Roast Chicken',
+    nameKo: '로스트 치킨',
+    level: 'easy',
     steps: [
       step('cutting', ['chicken'], { title: '닭 자르기', targetPattern: '콰직!', hint: '힘 있게 손질하세요.' }),
       step('roasting', ['chicken'], { title: '치킨 오븐구이', targetPattern: '치이이익', hint: '속까지 익히세요.' }),
@@ -372,47 +384,40 @@ function toCourse(recipe) {
   };
 }
 
-function recipePoolForCategory(category) {
-  return RECIPE_CATALOG.filter((recipe) => recipe.category === category);
-}
+/** 시작 추천: 브루스케타 + 미네스트로네 + 스테이크 + 애플 타르트 */
+export const STARTER_MENU = {
+  id: 'starter',
+  name: '시작 추천 4코스',
+  courses: [
+    toCourse(byKo('브루스케타')),
+    toCourse(byKo('미네스트로네')),
+    toCourse(byKo('스테이크 플레이트')),
+    toCourse(byKo('애플 타르트')),
+  ],
+};
 
-function pickRecipeForCategory(category, random = Math.random) {
-  return randomItem(recipePoolForCategory(category), random);
-}
-
-export function createStarterMenu(random = Math.random) {
-  const courses = MENU_CATEGORIES
-    .map((category) => pickRecipeForCategory(category, random))
-    .filter(Boolean)
-    .map((recipe) => toCourse(recipe));
-
-  return {
-    id: 'starter',
-    name: '시작 추천 4코스',
-    courses,
-  };
-}
-
-/** 시작 추천: 카테고리별 랜덤 4코스 */
-export const STARTER_MENU = createStarterMenu();
 export const MENUS = [STARTER_MENU];
 
 export const GUESTS = [
-  { name: '칼끝이 정밀한 민지', bonusType: 'cut', level: 1 },
-  { name: '리듬을 잘 타는 서연', bonusType: 'cut', level: 2 },
-  { name: '칼질 마스터 지우', bonusType: 'cut', level: 3 },
-  { name: '불향을 좋아하는 민호', bonusType: 'grill', level: 1 },
-  { name: '향을 맡는 서진', bonusType: 'grill', level: 2 },
-  { name: '불맛 감별사 태우', bonusType: 'grill', level: 3 },
-  { name: '끓임을 즐기는 지우', bonusType: 'boil', level: 1 },
-  { name: '온도에 예민한 나연', bonusType: 'boil', level: 2 },
-  { name: '보글 마스터 현우', bonusType: 'boil', level: 3 },
-  { name: '부드럽게 섞는 수아', bonusType: 'mix', level: 1 },
-  { name: '대본을 잘 읽는 유진', bonusType: 'mix', level: 2 },
-  { name: '한번에 섞는 민석', bonusType: 'mix', level: 3 },
-  { name: '가볍게 뿌리는 하린', bonusType: 'sprinklePour', level: 1 },
-  { name: '정확히 붓는 도윤', bonusType: 'sprinklePour', level: 2 },
-  { name: '마무리 장인 예은', bonusType: 'sprinklePour', level: 3 },
+  { name: '칼끝이 정밀한 민지', demand: `${ACTION_LABEL.cutting} 공정이 정확하면 보너스!`, bonusType: 'cut', level: 1 },
+  { name: '리듬을 잘 타는 서연', demand: `${ACTION_LABEL.cutting} 공정의 호흡이 안정적이면 보너스!`, bonusType: 'cut', level: 2 },
+  { name: '칼질 마스터 지우', demand: `${ACTION_LABEL.cutting} 공정이 아주 정교하면 보너스!`, bonusType: 'cut', level: 3 },
+
+  { name: '불향을 좋아하는 민호', demand: `${ACTION_LABEL.roasting} 공정이 고르게 맞으면 보너스!`, bonusType: 'grill', level: 1 },
+  { name: '향을 맡는 서진', demand: `${ACTION_LABEL.roasting} 공정의 타이밍이 좋으면 보너스!`, bonusType: 'grill', level: 2 },
+  { name: '불맛 감별사 태우', demand: `${ACTION_LABEL.roasting} 공정이 완벽하면 보너스!`, bonusType: 'grill', level: 3 },
+
+  { name: '끓임을 즐기는 지우', demand: `${ACTION_LABEL.boiling} 공정이 정확하면 보너스!`, bonusType: 'boil', level: 1 },
+  { name: '온도에 예민한 나연', demand: `${ACTION_LABEL.boiling} 공정의 유지력이 좋으면 보너스!`, bonusType: 'boil', level: 2 },
+  { name: '보글 마스터 현우', demand: `${ACTION_LABEL.boiling} 공정이 안정적이면 보너스!`, bonusType: 'boil', level: 3 },
+
+  { name: '부드럽게 섞는 수아', demand: `${ACTION_LABEL.mixing} 공정이 고르게 맞으면 보너스!`, bonusType: 'mix', level: 1 },
+  { name: '대본을 잘 읽는 유진', demand: `${ACTION_LABEL.mixing} 공정의 리듬이 좋으면 보너스!`, bonusType: 'mix', level: 2 },
+  { name: '한번에 섞는 민석', demand: `${ACTION_LABEL.mixing} 공정이 아주 정확하면 보너스!`, bonusType: 'mix', level: 3 },
+  
+  { name: '가볍게 뿌리는 하린', demand: `${ACTION_LABEL.sprinkling} 공정이 깔끔하면 보너스!`, bonusType: 'sprinklePour', level: 1 },
+  { name: '정확히 붓는 도윤', demand: `${ACTION_LABEL.sprinkling} 공정이 안정적이면 보너스!`, bonusType: 'sprinklePour', level: 2 },
+  { name: '마무리 장인 예은', demand: `${ACTION_LABEL.sprinkling} 공정이 완벽하면 보너스!`, bonusType: 'sprinklePour', level: 3 },
 ];
 
 export function getGuestLevel(state) {
@@ -421,25 +426,15 @@ export function getGuestLevel(state) {
   return Math.max(1, Math.min(3, Math.floor(dayLevel)));
 }
 
-function guestDemandForMenu(guest, menu) {
-  const courseNames = (menu?.courses || []).map((course) => course.name).filter(Boolean).join(' · ');
-  const menuText = courseNames || '오늘 메뉴';
-  const actionText = TYPE_LABEL[guest.bonusType] || guest.bonusType;
-  return `${menuText}가 포함된 오늘 코스에서 ${actionText}이 잘 맞으면 보너스!`;
-}
-
 export function getGuestsForLevel(level) {
   const target = Math.max(1, Math.min(3, Number(level) || 1));
   return GUESTS.filter((guest) => guest.level === target);
 }
 
-export function pickGuestForLevel(level, menu, random = Math.random) {
+export function pickGuestForLevel(level, random = Math.random) {
   const pool = getGuestsForLevel(level);
-  const chosen = pool.length ? pool[Math.floor(random() * pool.length)] : GUESTS[0];
-  return {
-    ...chosen,
-    demand: guestDemandForMenu(chosen, menu),
-  };
+  if (!pool.length) return GUESTS[0];
+  return pool[Math.floor(random() * pool.length)];
 }
 
 export function ingredientAsset(ingredientId) {
