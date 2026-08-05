@@ -385,17 +385,90 @@ function toCourse(recipe) {
 }
 
 /** 시작 추천: 브루스케타 + 미네스트로네 + 스테이크 + 애플 타르트 */
-export const STARTER_MENU = {
-  id: 'starter',
-  name: '시작 추천 4코스',
-  courses: [
-    toCourse(byKo('브루스케타')),
-    toCourse(byKo('미네스트로네')),
-    toCourse(byKo('스테이크 플레이트')),
-    toCourse(byKo('애플 타르트')),
-  ],
-};
+export function createStarterMenu() {
+  return {
+    id: 'starter',
+    name: '시작 추천 4코스',
+    courses: [
+      toCourse(byKo('브루스케타')),
+      toCourse(byKo('미네스트로네')),
+      toCourse(byKo('스테이크 플레이트')),
+      toCourse(byKo('애플 타르트')),
+    ],
+  };
+}
 
+/** bonusType에 해당하는 step action 반환 */
+function bonusTypeToAction(bonusType) {
+  const map = {
+    'cut': 'cutting',
+    'grill': 'roasting',
+    'boil': 'boiling',
+    'mix': 'mixing',
+    'sprinklePour': 'sprinkling',
+  };
+  return map[bonusType] || null;
+}
+
+/** 게스트의 bonusType과 난이도를 기반으로 메뉴 생성 */
+export function createMenuForGuest(guest, random = Math.random) {
+  const targetAction = bonusTypeToAction(guest.bonusType);
+  const guestLevel = guest.level; // 1, 2, 3
+
+  // 게스트 난이도에 맞는 음식 레벨
+  const levelMap = { 1: 'easy', 2: 'normal', 3: 'hard' };
+  const targetRecipeLevel = levelMap[guestLevel];
+
+  // 카테고리 순서
+  const categoryOrder = ['appetizer', 'starter', 'main', 'dessert'];
+  const courses = [];
+
+  for (const category of categoryOrder) {
+    // 각 카테고리에서 bonusType과 난이도에 맞는 음식 필터링
+    let categoryRecipes = RECIPE_CATALOG.filter(
+      (recipe) =>
+        recipe.category === category &&
+        recipe.level === targetRecipeLevel &&
+        recipe.steps.some((s) => s.action === targetAction)
+    );
+
+    // 난이도에 맞는 음식이 없으면 같은 카테고리의 모든 음식 사용
+    if (categoryRecipes.length === 0) {
+      categoryRecipes = RECIPE_CATALOG.filter(
+        (recipe) =>
+          recipe.category === category &&
+          recipe.steps.some((s) => s.action === targetAction)
+      );
+    }
+
+    // 그래도 없으면 같은 카테고리의 모든 음식 (보너스 타입 상관없이)
+    if (categoryRecipes.length === 0) {
+      categoryRecipes = RECIPE_CATALOG.filter(
+        (recipe) => recipe.category === category
+      );
+    }
+
+    // 랜덤으로 하나 선택
+    if (categoryRecipes.length > 0) {
+      const randomRecipe =
+        categoryRecipes[Math.floor(random() * categoryRecipes.length)];
+      courses.push(toCourse(randomRecipe));
+    }
+  }
+
+  // 코스가 4개 미만이면 기본 메뉴 반환
+  if (courses.length < 4) {
+    return createStarterMenu();
+  }
+
+  return {
+    id: 'dynamic',
+    name: `${guest.bonusType} 메뉴`,
+    courses,
+  };
+}
+
+export const STARTER_MENU = createStarterMenu();
 export const MENUS = [STARTER_MENU];
 
 export const GUESTS = [
@@ -438,10 +511,18 @@ export function getGuestsForLevel(level) {
   return GUESTS.filter((guest) => guest.level === target);
 }
 
-export function pickGuestForLevel(level, random = Math.random) {
+export function pickGuestForLevel(level, menu, random = Math.random) {
+  if (typeof menu === 'function') {
+    random = menu;
+    menu = null;
+  }
   const pool = getGuestsForLevel(level);
-  if (!pool.length) return GUESTS[0];
-  return pool[Math.floor(random() * pool.length)];
+  const chosen = pool.length ? pool[Math.floor(random() * pool.length)] : GUESTS[0];
+  if (!menu) return chosen;
+  return {
+    ...chosen,
+    demand: guestDemandForMenu(chosen, menu),
+  };
 }
 
 export function ingredientAsset(ingredientId) {

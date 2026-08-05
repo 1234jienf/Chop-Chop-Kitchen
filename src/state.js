@@ -1,22 +1,39 @@
 import {
   PLAYERS,
+  TYPE_LABEL,
   createStarterMenu,
+  createMenuForGuest,
   getGuestLevel,
   pickGuestForLevel,
-} from './data.js?v=57';
+} from './data.js?v=58';
 import { calculateDayResult } from './dayresult.js?v=3';
 
 const flattenSteps = (menu) =>
   menu.courses.flatMap((course) => course.steps.map((process) => ({ ...process, course })));
 
 export function createGameState() {
-  const menu = createStarterMenu();
+  // 1단계: 손님을 먼저 선택 (난이도는 day에 따라 결정)
+  const day = 1;
+  const guestLevel = Math.max(1, Math.min(3, day));
+  const guest = pickGuestForLevel(guestLevel);
+
+  // 2단계: 선택된 손님의 bonusType과 난이도를 기반으로 메뉴 생성
+  const menu = createMenuForGuest(guest);
+
+  // 3단계: 생성된 메뉴에 맞게 손님의 demand 설정
+  const menuText = (menu?.courses || []).map((course) => course.name).filter(Boolean).join(' · ') || '오늘 메뉴';
+  const actionText = TYPE_LABEL[guest.bonusType] || guest.bonusType;
+  const guestWithDemand = {
+    ...guest,
+    demand: `${menuText}가 포함된 오늘 코스에서 ${actionText}이(가) 잘 맞으면 보너스!`,
+  };
+
   return {
-    day: 1,
+    day,
     money: 1200,
     grade: '1성',
     menu,
-    guest: pickGuestForLevel(1, menu),
+    guest: guestWithDemand,
     players: [...PLAYERS],
     currentStep: 0,
     results: [],
