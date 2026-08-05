@@ -27,7 +27,6 @@ import {
   CUT_LABEL_KO,
   cutCountForIngredient,
   cutAccuracy,
-  detectTakBurst,
   JUDGE_KO,
   knifeStartX,
   nextRequiredLabel,
@@ -43,7 +42,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js?v=88';
+} from './cutplay.js?v=94';
 import {
   bandLabel,
   createRoastHeat,
@@ -82,7 +81,7 @@ import {
 } from './sprinklepourplay.js?v=53';
 import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=51';
 import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
-import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=12';
+import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=21';
 import { requestGuestReviews } from './dayreview.js?v=2';
 import { renderReceipt, renderReceiptLoading } from './receipt.js?v=2';
 
@@ -189,11 +188,12 @@ let speechRec = null;
 let speechWanted = false;
 let lastSpeechTakAt = 0;
 let tmMicActive = false;
-let wasAboveBurst = false;
 /** 썰기 입력 절대 게이트 — 콜백 경합으로 2연타 나는 것 차단 */
 let cutHitGateUntil = 0;
 /** 마이크 켠 직후 클릭음 무시 */
 let cutVoiceArmedAt = 0;
+let cutDebugMuteUntil = 0;
+let lastMicVolume = 0;
 let speechKickTimer = null;
 const roastHeat = createRoastHeat();
 const finishSession = createFinishSession();
@@ -1846,45 +1846,75 @@ function handleTmLabel({ label, score }) {
   const current = getCurrent(state);
 
   if (label === 'Tak' || label === 'Chap' || label === 'Ssuk' || label === 'Ssak') {
-    if (peakArmed && isCuttingStep(current) && cutSession?.listening && !cutSession.finished) {
-      if (performance.now() < cutVoiceArmedAt) return;
-      applyTakHit(`TM ${label} ${pct}%`, { label });
-      return;
+    if (peakArmed && isCuttingStep(current) && cutSession && cutSession.listening && !cutSession.finished) {
+      if (performance.now() < cutVoiceArmedAt) return false;
+      // 침묵 오발동만 아주 약하게 차단 (볼륨 게이트가 진짜 말도 막던 문제 완화)
+      if (lastMicVolume < 5) {
+        console.log('[TM] skip quiet/fake hit', label, pct + '%', 'vol', lastMicVolume);
+        return false;
+      }
+      applyTakHit('VOICE ' + label + ' ' + pct + '%', { label: label });
+      return true;
     }
     if (boilArmed && isBoilingStep(current)) {
       tmChapUntil = now + 700;
       tmBoostUntil = now + 700;
-      $('#micStatus').textContent = `TM ${label} ${pct}% · 보글!`;
-      return;
+      var el1 = document.querySelector('#micStatus');
+      if (el1) el1.textContent = 'VOICE ' + label + ' ' + pct + '% boil';
+      return true;
     }
     if (mixingArmed && isMixingStep(current)) {
       tmBoostUntil = now + 600;
-      $('#micStatus').textContent = `TM ${label} ${pct}% · 섞기`;
-      return;
+      var el2 = document.querySelector('#micStatus');
+      if (el2) el2.textContent = 'VOICE ' + label + ' ' + pct + '% mix';
+      return true;
     }
+    return false;
   }
 
   if (label === 'Huu') {
     tmHuuUntil = now + 900;
     tmBoostUntil = now + 900;
-    if (roastArmed && isRoastingStep(current)) {
-      $('#micStatus').textContent = `TM Huu ${pct}% · 후우~`;
-    } else if (boilArmed && isBoilingStep(current)) {
-      $('#micStatus').textContent = `TM Huu ${pct}% · 불 키기`;
-    } else {
-      $('#micStatus').textContent = `TM Huu ${pct}%`;
+    var el3 = document.querySelector('#micStatus');
+    if (el3) {
+      if (roastArmed && isRoastingStep(current)) el3.textContent = 'VOICE Huu ' + pct + '% blow';
+      else if (boilArmed && isBoilingStep(current)) el3.textContent = 'VOICE Huu ' + pct + '% fire';
+      else el3.textContent = 'VOICE Huu ' + pct + '%';
     }
-    return;
+    return true;
   }
 
   if (label === 'Ting') {
-    $('#micStatus').textContent = `TM Ting ${pct}%`;
+    var el4 = document.querySelector('#micStatus');
+    if (el4) el4.textContent = 'VOICE Ting ' + pct + '%';
+    return true;
   }
+  return false;
+}
+
+function handleTmDebug({ text, note }) {
+  if (!micOn || !peakArmed) return;
+  // HIT 직후 판정 문구는 유지, 그 외엔 실시간 점수 표시
+  if (performance.now() < cutDebugMuteUntil && !note) return;
+  if (performance.now() < cutVoiceArmedAt) {
+    $('#micStatus').textContent = `준비… ${text}`;
+    return;
+  }
+  const need = nextRequiredLabel(cutSession);
+  const ko = need ? (CUT_LABEL_KO[need] || need) : '탁';
+  $('#micStatus').textContent = note
+    ? `${note} · ${text}`
+    : `말해요 「${ko}」 · ${text}`;
 }
 
 async function startTmMicAssist() {
   try {
-    await startTmListen(handleTmLabel, { probabilityThreshold: 0.22, overlapFactor: 0.85 });
+    await startTmListen(handleTmLabel, {
+      probabilityThreshold: 0.32,
+      overlapFactor: 0.92,
+      preferCutLabel: () => (peakArmed && cutSession ? nextRequiredLabel(cutSession) : null),
+      onDebug: handleTmDebug,
+    });
     tmMicActive = true;
     return true;
   } catch (err) {
@@ -1897,11 +1927,10 @@ async function startTmMicAssist() {
 function applyTakHit(sourceLabel, { label = 'Tak' } = {}) {
   if (cutSession.autoFinishPending || cutSession.finished || cutSession.animating) return;
   const now = performance.now();
-  /* 마이크 버튼 클릭음 / 켜자마자 잡음 무시 */
   if (now < cutVoiceArmedAt) return;
   if (now < cutHitGateUntil) return;
   if (now < (cutSession.cutLockedUntil || 0)) return;
-  cutHitGateUntil = now + 550;
+  cutHitGateUntil = now + 220;
 
   const result = tryChopOnTak(cutSession, {
     knifeEl: $('#knifeHand'),
@@ -1911,9 +1940,10 @@ function applyTakHit(sourceLabel, { label = 'Tak' } = {}) {
 
   if (result === 'complete' || JUDGE_KO[result]) {
     lastSpeechTakAt = now;
-    cutHitGateUntil = now + 550;
+    cutHitGateUntil = now + 220;
+    cutDebugMuteUntil = now + 700;
   } else {
-    cutHitGateUntil = now + 120;
+    cutHitGateUntil = now + 40;
   }
 
   const n = cutSession.actualCuts.length;
@@ -1926,8 +1956,8 @@ function applyTakHit(sourceLabel, { label = 'Tak' } = {}) {
     setTimeout(() => finishVoiceCut(), 450);
   } else if (judge) {
     $('#micStatus').textContent = needKo
-      ? `${judge} · ${n}/${total} · 다음 「${needKo}」`
-      : `${judge} · ${n}/${total}`;
+      ? `${judge} · ${n}/${total} · 다음 「${needKo}」 · ${sourceLabel}`
+      : `${judge} · ${n}/${total} · ${sourceLabel}`;
   } else if (result === 'miss-advance') {
     $('#micStatus').textContent = `${sourceLabel} · 칼이 조금 더 온 뒤!`;
   } else if (result === 'locked') {
@@ -2031,7 +2061,6 @@ function stopLiveMic() {
   cutHitGateUntil = 0;
   cutVoiceArmedAt = 0;
   lastFrameTs = 0;
-  wasAboveBurst = false;
   tmBoostUntil = 0;
   tmHuuUntil = 0;
   tmChapUntil = 0;
@@ -2062,8 +2091,14 @@ function stopLiveMic() {
 function volumePercentFromAnalyser(freq) {
   if (!freq?.length) return 0;
   let sum = 0;
-  for (let i = 0; i < freq.length; i++) sum += freq[i];
-  return Math.min(100, Math.floor((sum / freq.length / 128) * 100));
+  let peak = 0;
+  for (let i = 0; i < freq.length; i++) {
+    sum += freq[i];
+    if (freq[i] > peak) peak = freq[i];
+  }
+  const avg = (sum / freq.length / 128) * 100;
+  const pk = (peak / 255) * 100;
+  return Math.min(100, Math.floor(Math.max(avg, pk * 0.9)));
 }
 
 function tickLiveMic(ts) {
@@ -2081,7 +2116,10 @@ function tickLiveMic(ts) {
     analyser.getByteFrequencyData(freq);
     analyser.getByteTimeDomainData(wave);
     volumePercent = volumePercentFromAnalyser(freq);
+    lastMicVolume = volumePercent;
     $('#voiceBar').style.width = `${volumePercent}%`;
+  } else {
+    lastMicVolume = 0;
   }
 
   const knife = $('#knifeHand');
@@ -2293,7 +2331,7 @@ function tickLiveMic(ts) {
       });
     }
 
-    /* 썰기: 파열음 완전 OFF — TM/STT만. 파열음+음성 2연타 원인 */
+    /* 썰기: 음성인식(TM) 주력 — 파열음 OFF (2연타·오인 방지) */
   }
 
   if (mixingArmed && isMixingStep(current)) {
@@ -2385,9 +2423,8 @@ $('#micBtn').addEventListener('click', async () => {
     lastFrameTs = 0;
     lastSpeechTakAt = 0;
     cutHitGateUntil = 0;
-    wasAboveBurst = false;
-    /* 클릭 직후 ~1초는 썰기 입력 무시 (버튼 클릭음 → 탁 오인) */
-    cutVoiceArmedAt = peakArmed ? performance.now() + 1000 : 0;
+    /* 클릭음만 짧게 무시 — 음성은 바로 */
+    cutVoiceArmedAt = peakArmed ? performance.now() + 280 : 0;
     if (peakArmed) cutHitGateUntil = cutVoiceArmedAt;
     $('#micBtn').textContent = '마이크 끄기';
 
@@ -2426,16 +2463,16 @@ $('#micBtn').addEventListener('click', async () => {
           if (!micOn || !peakArmed) return;
           const n2 = nextRequiredLabel(cutSession);
           const ko2 = n2 ? (CUT_LABEL_KO[n2] || n2) : '탁';
-          $('#micStatus').textContent = `TM · 주황 점선에서 「${ko2}」`;
+          $('#micStatus').textContent = `음성만 · 「${ko2}」 · 숫자가 올라가는지 보세요`;
         }, armLeft + 30);
       } else {
-        $('#micStatus').textContent = `TM · 주황 점선에서 「${ko}」`;
+        $('#micStatus').textContent = `음성만 · 「${ko}」 · 숫자가 올라가는지 보세요`;
       }
     } else if (peakArmed) {
       const ok = startTakSpeech();
       $('#micStatus').textContent = ok
-        ? '듣는 중 · 「탁」 크게 · STT 보조 (TM 없음)'
-        : '파열음 보조만 ON · 「탁」처럼 짧게';
+        ? '음성인식 · 「탁」 크게 (TM 없음 · STT)'
+        : '음성인식 불가 · Chrome에서 다시 시도';
     } else if (tmOk && roastArmed) {
       $('#micStatus').textContent = 'TM ON · 「후우~」불어 강불';
     } else if (tmOk && boilArmed) {

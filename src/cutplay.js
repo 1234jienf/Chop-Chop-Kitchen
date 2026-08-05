@@ -11,7 +11,7 @@ const HOT_BEFORE = 0.14;
 const HOT_AFTER = 0.12;
 const KNIFE_SPEED = 0.11;
 const PEAK_COOLDOWN_MS = 70;
-const POST_CUT_LOCK_MS = 400;
+const POST_CUT_LOCK_MS = 200;
 const CUT_ADVANCE_MIN = 0.045;
 const CUT_SIZE_DEFAULT = 200;
 const MISS_COOLDOWN_MS = 120;
@@ -342,7 +342,8 @@ export function detectTakBurst(freq, wave, wasAbove, sampleRate = 48000) {
   let peak = 0;
   for (let i = 0; i < wave.length; i++) peak = Math.max(peak, Math.abs(wave[i] - 128));
   const level = Math.min(100, (peak / 128) * 100);
-  const above = level >= 28;
+  /* 짧게 터지는 「탁」류 — 임계값을 낮춰 더 잘 잡음 */
+  const above = level >= 16;
   const onset = above && !wasAbove;
   if (!onset) return { hit: false, above, kind: 'none', level };
   const binHz = sampleRate / 2 / freq.length;
@@ -355,11 +356,13 @@ export function detectTakBurst(freq, wave, wasAbove, sampleRate = 48000) {
     else if (hz < 5500) mid += v;
     else high += v;
   }
-  if (total < 6) return { hit: false, above, kind: 'quiet', level };
+  if (total < 3) return { hit: false, above, kind: 'quiet', level };
   const lowRatio = low / total;
   const midRatio = mid / total;
-  if (lowRatio > 0.55) return { hit: false, above, kind: 'thump', level, midRatio };
-  if (midRatio + high / total >= 0.4 && midRatio >= 0.22 && level >= 20) {
+  const highRatio = high / total;
+  /* 책상 쿵(저음)만 강하게 걸러냄 */
+  if (lowRatio > 0.68) return { hit: false, above, kind: 'thump', level, midRatio };
+  if (midRatio + highRatio >= 0.28 && midRatio >= 0.12 && level >= 12) {
     return { hit: true, above, kind: 'burst', level, midRatio };
   }
   return { hit: false, above, kind: 'noise', level, midRatio };

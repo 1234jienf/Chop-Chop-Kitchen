@@ -1,48 +1,118 @@
 /**
- * Teachable Machine Audio (speech-commands) wrapper.
- * Labels: Chap, Huu, Ssak, Ssuk, Tak, Ting, 배경 소음
+ * Teachable Machine Audio — 썰기 = Tak/Ssuk/Ssak/Chap 음성만.
+ *
+ * 로그에서 본 문제:
+ * - threshold 6%면 침묵에도 Tak13/Chap18 같은 잡음 스파이크가 HIT
+ * - 그 가짜 HIT 후 쿨다운 → 진짜 말은 쿨다운/게이트에 막힘
+ *
+ * 지금 원칙 (침묵 오발동 차단 + 실제 말은 잡기):
+ * - 컷 라벨 점수가 충분히 높을 것 (>= 32~35%)
+ * - 2등 컷 라벨보다 확실히 이길 것 (마진)
+ * - 강한 스파이크는 1프레임 HIT, 아니면 짧은 후보 확정
+ * - 샘플레이트 44100 유지
  */
 
 const MODEL_URL = new URL('./tm-audio/', import.meta.url).href;
-
 const BG = '배경 소음';
-const CUT_LABELS = new Set(['Tak', 'Chap', 'Ssuk', 'Ssak']);
-const COOLDOWN_MS = {
-  Tak: 480,
-  Chap: 480,
-  Ssuk: 480,
-  Ssak: 480,
-  Huu: 350,
-  Ting: 450,
-};
+const CUT_LABELS = ['Tak', 'Ssuk', 'Ssak', 'Chap'];
+const CUT_SET = new Set(CUT_LABELS);
+const CUT_COOLDOWN_MS = 450;
+const OTHER_COOLDOWN_MS = { Huu: 350, Ting: 400 };
+const TARGET_SAMPLE_RATE = 44100;
 
 let recognizer = null;
 let listening = false;
 let loadPromise = null;
 let onLabel = null;
+let onDebug = null;
+let preferCutLabel = null;
+let cutThreshold = 0.35;
 const lastFire = Object.create(null);
+let lastDebugAt = 0;
+let pendingLabel = null;
+let pendingCount = 0;
+let audioContextPatched = false;
+let OriginalAudioContext = null;
 
-function topPrediction(scores, labels) {
-  let best = 0;
-  for (let i = 1; i < scores.length; i++) {
-    if (scores[i] > scores[best]) best = i;
+function asArray(scores) {
+  if (!scores) return [];
+  if (Array.isArray(scores)) {
+    if (scores.length === 1 && scores[0] && typeof scores[0].length === 'number') {
+      return Array.from(scores[0]);
+    }
+    return Array.from(scores);
   }
-  return { label: labels[best], score: scores[best], index: best };
+  if (typeof scores.length === 'number') return Array.from(scores);
+  return [];
 }
 
-/** 배경이 1등이어도, 썰기 라벨 중 제일 높은 걸 고름 */
-function bestCutPrediction(scores, labels, minScore) {
-  let best = -1;
-  let bestScore = 0;
-  for (let i = 0; i < labels.length; i++) {
-    if (!CUT_LABELS.has(labels[i])) continue;
-    if (scores[i] > bestScore) {
-      bestScore = scores[i];
-      best = i;
+function scoreMap(scores, labels) {
+  const arr = asArray(scores);
+  const map = Object.create(null);
+  for (let i = 0; i < labels.length; i++) map[labels[i]] = Number(arr[i]) || 0;
+  return map;
+}
+
+function isBackgroundLabel(label) {
+  return !label
+    || label === BG
+    || label === '_background_noise_'
+    || /배경|background|noise/i.test(label);
+}
+
+function patchAudioContextSampleRate(hz) {
+  if (audioContextPatched) return;
+  OriginalAudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!OriginalAudioContext) return;
+  function PatchedAudioContext(options) {
+    const opts = Object.assign({}, options || {}, { sampleRate: hz });
+    return new OriginalAudioContext(opts);
+  }
+  PatchedAudioContext.prototype = OriginalAudioContext.prototype;
+  window.AudioContext = PatchedAudioContext;
+  if ('webkitAudioContext' in window) window.webkitAudioContext = PatchedAudioContext;
+  audioContextPatched = true;
+}
+
+function restoreAudioContext() {
+  if (!audioContextPatched || !OriginalAudioContext) return;
+  window.AudioContext = OriginalAudioContext;
+  if ('webkitAudioContext' in window) window.webkitAudioContext = OriginalAudioContext;
+  audioContextPatched = false;
+}
+
+/** 컷 라벨 중 1·2등 */
+function topTwoCuts(map, prefer) {
+  const ranked = CUT_LABELS
+    .map((label) => ({ label, score: map[label] || 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  let first = ranked[0];
+  let second = ranked[1] || { label: null, score: 0 };
+
+  // 가이드 라벨이 1등에 가까우면 우선
+  if (prefer && CUT_SET.has(prefer)) {
+    const prefScore = map[prefer] || 0;
+    if (prefScore >= cutThreshold && prefScore >= first.score - 0.08) {
+      second = first.label === prefer ? second : first;
+      first = { label: prefer, score: prefScore };
     }
   }
-  if (best < 0 || bestScore < minScore) return null;
-  return { label: labels[best], score: bestScore, index: best };
+  return { first, second };
+}
+
+function emitDebug(map, bgScore, note) {
+  const now = performance.now();
+  if (now - lastDebugAt < 90 && !note) return;
+  lastDebugAt = now;
+  const line = 'Tak' + Math.round((map.Tak || 0) * 100)
+    + ' Ssuk' + Math.round((map.Ssuk || 0) * 100)
+    + ' Ssak' + Math.round((map.Ssak || 0) * 100)
+    + ' Chap' + Math.round((map.Chap || 0) * 100)
+    + ' | 배경' + Math.round(bgScore * 100)
+    + (note ? ' · ' + note : '');
+  console.log('[TM]', line);
+  if (onDebug) onDebug({ text: line, map: map, bgScore: bgScore, note: note || null });
 }
 
 export function tmReady() {
@@ -53,92 +123,185 @@ export async function preloadTmAudio() {
   if (recognizer) return recognizer;
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
-    if (!window.speechCommands) {
-      throw new Error('speechCommands CDN not loaded');
-    }
+    if (!window.speechCommands) throw new Error('speechCommands CDN not loaded');
     const rec = window.speechCommands.create(
       'BROWSER_FFT',
       undefined,
-      `${MODEL_URL}model.json`,
-      `${MODEL_URL}metadata.json`,
+      MODEL_URL + 'model.json',
+      MODEL_URL + 'metadata.json'
     );
     await rec.ensureModelLoaded();
     recognizer = rec;
+    console.log('[TM] model ready', rec.wordLabels());
     return rec;
   })();
   try {
     return await loadPromise;
   } catch (err) {
     loadPromise = null;
+    console.error('[TM] model load failed', err);
     throw err;
   }
 }
 
-/**
- * @param {(evt: { label: string, score: number }) => void} handler
- */
-export async function startTmListen(handler, {
-  probabilityThreshold = 0.22,
-  overlapFactor = 0.85,
-} = {}) {
+export async function startTmListen(handler, opts) {
+  opts = opts || {};
+  const probabilityThreshold = opts.probabilityThreshold == null ? 0.35 : opts.probabilityThreshold;
+  const overlapFactor = opts.overlapFactor == null ? 0.85 : opts.overlapFactor;
   onLabel = handler;
+  onDebug = opts.onDebug || null;
+  preferCutLabel = opts.preferCutLabel || null;
+  cutThreshold = probabilityThreshold;
   await preloadTmAudio();
-  if (listening) return true;
+
+  if (listening) {
+    console.log('[TM] listen already on — handler updated');
+    return true;
+  }
+
+  for (const key of Object.keys(lastFire)) delete lastFire[key];
+  pendingLabel = null;
+  pendingCount = 0;
+  lastDebugAt = 0;
+
   const labels = recognizer.wordLabels();
-  const bgIndex = labels.findIndex((l) => l === BG || l === '_background_noise_');
-  await recognizer.listen(
-    (result) => {
-      if (!onLabel) return;
-      const scores = result.scores;
-      const top = topPrediction(scores, labels);
-      const bgScore = bgIndex >= 0 ? scores[bgIndex] : 0;
+  const bgIndex = labels.findIndex((l) => isBackgroundLabel(l));
+  console.log('[TM] labels', labels, 'bgIndex', bgIndex, 'threshold', cutThreshold);
 
-      // 썰기 라벨 우선 (배경 1등이어도 Tak 등이 충분하면 통과)
-      let pick = bestCutPrediction(scores, labels, probabilityThreshold);
-      if (!pick) {
-        // Huu / Ting 등
-        if (!top.label || top.label === BG || top.label === '_background_noise_') return;
-        if (top.score < probabilityThreshold) return;
-        if (bgScore > top.score) return;
-        pick = top;
-      } else if (bgScore > pick.score + 0.18 && pick.score < 0.4) {
-        // 배경이 압도적이면만 무시
-        return;
+  patchAudioContextSampleRate(TARGET_SAMPLE_RATE);
+  try {
+    await recognizer.listen(
+      (result) => {
+        if (!onLabel) return;
+        const map = scoreMap(result.scores, labels);
+        const bgScore = bgIndex >= 0 ? (map[labels[bgIndex]] || 0) : 0;
+        const prefer = typeof preferCutLabel === 'function' ? preferCutLabel() : null;
+        const now = performance.now();
+        const { first, second } = topTwoCuts(map, prefer);
+        const margin = first.score - second.score;
+        const vsBg = first.score >= bgScore - 0.05;
+        // 한 프레임만 튀는 경우가 많아서, 마진이 크면 즉시 HIT
+        const strong = vsBg && (
+          (first.score >= 0.40 && margin >= 0.10)
+          || (first.score >= 0.35 && margin >= 0.18)
+        );
+        const ok = first.score >= cutThreshold && margin >= 0.08 && vsBg;
+
+        const fireCut = (label, score) => {
+          if (now - (lastFire._cut || 0) < CUT_COOLDOWN_MS) {
+            emitDebug(map, bgScore, '쿨다운');
+            return;
+          }
+          const accepted = onLabel({
+            label,
+            score,
+            index: labels.indexOf(label),
+          });
+          if (accepted === false) {
+            emitDebug(map, bgScore, '무시 ' + label + Math.round(score * 100) + '(게이트)');
+            pendingLabel = null;
+            pendingCount = 0;
+            return;
+          }
+          lastFire._cut = now;
+          lastFire[label] = now;
+          lastFire._any = now;
+          pendingLabel = null;
+          pendingCount = 0;
+          emitDebug(map, bgScore, 'HIT ' + label + ' ' + Math.round(score * 100) + '%');
+        };
+
+        // 확실하면 1프레임 즉시 HIT (Ssuk58 같은 스파이크가 2프레임 못 버티던 문제)
+        if (strong) {
+          fireCut(first.label, first.score);
+          return;
+        }
+
+        if (!ok) {
+          // 직전 후보가 있으면 한 프레임 정도는 낮은 점수로도 확정 허용
+          if (pendingLabel && (map[pendingLabel] || 0) >= 0.28 && now - (lastFire._pendAt || 0) < 220) {
+            fireCut(pendingLabel, map[pendingLabel] || first.score);
+            return;
+          }
+          pendingLabel = null;
+          pendingCount = 0;
+          emitDebug(map, bgScore, null);
+        } else {
+          if (pendingLabel === first.label) pendingCount += 1;
+          else {
+            pendingLabel = first.label;
+            pendingCount = 1;
+            lastFire._pendAt = now;
+          }
+          emitDebug(
+            map,
+            bgScore,
+            pendingCount < 2 ? ('후보 ' + first.label + Math.round(first.score * 100)) : null,
+          );
+          if (pendingCount >= 2) {
+            fireCut(first.label, first.score);
+            return;
+          }
+        }
+
+        // Huu / Ting
+        let topLabel = labels[0];
+        let topScore = map[topLabel] || 0;
+        for (let i = 1; i < labels.length; i++) {
+          const s = map[labels[i]] || 0;
+          if (s > topScore) {
+            topScore = s;
+            topLabel = labels[i];
+          }
+        }
+        if (!isBackgroundLabel(topLabel) && !CUT_SET.has(topLabel) && topScore >= 0.45 && topScore >= bgScore + 0.08) {
+          const cd = OTHER_COOLDOWN_MS[topLabel] || 350;
+          if (now - (lastFire[topLabel] || 0) >= cd && now - (lastFire._any || 0) >= 120) {
+            const accepted = onLabel({ label: topLabel, score: topScore, index: labels.indexOf(topLabel) });
+            if (accepted !== false) {
+              lastFire[topLabel] = now;
+              lastFire._any = now;
+            }
+          }
+        }
+      },
+      {
+        includeSpectrogram: false,
+        probabilityThreshold: 0,
+        invokeCallbackOnNoiseAndUnknown: true,
+        overlapFactor: Math.min(Math.max(overlapFactor, 0), 0.9),
+        suppressionTimeMillis: 300,
+        audioTrackConstraints: {
+          sampleRate: TARGET_SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
       }
+    );
+  } finally {
+    restoreAudioContext();
+  }
 
-      const now = performance.now();
-      const isCut = CUT_LABELS.has(pick.label);
-      const cd = COOLDOWN_MS[pick.label] ?? 280;
-      if (now - (lastFire[pick.label] || 0) < cd) return;
-      /* 탁/삭/찹이 한 발음에 여러 라벨로 연속 발사되는 것 차단 */
-      if (isCut && now - (lastFire._cut || 0) < 650) return;
-      if (now - (lastFire._any || 0) < 200) return;
-      lastFire[pick.label] = now;
-      lastFire._any = now;
-      if (isCut) lastFire._cut = now;
-      onLabel({ label: pick.label, score: pick.score, index: pick.index });
-    },
-    {
-      includeSpectrogram: false,
-      probabilityThreshold: 0.22,
-      invokeCallbackOnNoiseAndUnknown: true,
-      overlapFactor: Math.min(overlapFactor, 0.75),
-    },
-  );
   listening = true;
+  console.log('[TM] listening started @', TARGET_SAMPLE_RATE);
   return true;
 }
 
 export async function stopTmListen() {
   onLabel = null;
+  onDebug = null;
+  preferCutLabel = null;
+  pendingLabel = null;
+  pendingCount = 0;
   if (!recognizer || !listening) {
     listening = false;
     return;
   }
   try {
     await recognizer.stopListening();
-  } catch (_) {
-    /* already stopped */
-  }
+  } catch (e) {}
   listening = false;
+  console.log('[TM] listening stopped');
 }
