@@ -16,7 +16,7 @@ import {
   rememberIngredientCuts,
   startNextDay,
   submitStep,
-} from './state.js?v=58';
+} from './state.js?v=59';
 import {
   advanceKnife,
   attachKnifeToTomato,
