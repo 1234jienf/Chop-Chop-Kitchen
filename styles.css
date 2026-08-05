@@ -314,7 +314,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   inset:0!important;
 }
 .live-slices .burst-clip img{
-  object-fit:fill!important;
+  object-fit:contain!important;
 }
 .whole-tomato.is-hit{animation:tomatoHit .18s ease}
 .live-slices.is-hit{animation:tomatoHit .2s ease}
@@ -329,9 +329,9 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   position:absolute!important;
   left:var(--knife-t,0%)!important;
   right:auto!important;
-  bottom:-42px!important;
+  bottom:-48px!important;
   top:auto!important;
-  width:210px!important;
+  width:240px!important;
   max-width:none!important;
   height:auto!important;
   transform:translateX(-50%) rotate(-18deg);
@@ -399,6 +399,81 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   filter:drop-shadow(0 0 6px #ff8a2acc);
 }
 .cut-guide.done{opacity:.28}
+.cut-guide.done-perfect{
+  border-left-color:#7dffb0 !important;
+  opacity:.9;
+  filter:drop-shadow(0 0 5px #7dffb088);
+}
+.cut-guide.done-good{
+  border-left-color:#ffe08a !important;
+  opacity:.85;
+}
+.cut-guide.done-wrong{
+  border-left-color:#ff8a3c !important;
+  opacity:.95;
+  filter:drop-shadow(0 0 6px #ff8a3c99);
+}
+.cut-guide.done-early,
+.cut-guide.done-late{
+  border-left-color:#ff5a6a !important;
+  opacity:.95;
+  filter:drop-shadow(0 0 6px #ff5a6a99);
+}
+.cut-guide.done-perfect .cut-guide-syl{color:#9dffc2;opacity:1}
+.cut-guide.done-good .cut-guide-syl{color:#ffe9a8;opacity:1}
+.cut-guide.done-wrong .cut-guide-syl{color:#ffb07a;opacity:1}
+.cut-guide.done-early .cut-guide-syl,
+.cut-guide.done-late .cut-guide-syl{color:#ff8a96;opacity:1}
+.cut-guide-grade{
+  position:absolute;
+  left:50%;
+  bottom:-1.2em;
+  transform:translateX(-50%);
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.04em;
+  color:#ff8a96;
+  white-space:nowrap;
+  text-shadow:0 1px 2px #000a;
+}
+
+/* 리듬 판정 팝업 */
+.cut-judge{
+  position:absolute;
+  top:8%;
+  transform:translateX(-50%);
+  z-index:20;
+  text-align:center;
+  pointer-events:none;
+  animation:cut-judge-pop .75s ease forwards;
+  text-shadow:0 2px 8px #000a;
+}
+.cut-judge b{
+  display:block;
+  font-size:18px;
+  font-weight:900;
+  letter-spacing:.06em;
+  line-height:1.1;
+}
+.cut-judge span{
+  display:block;
+  margin-top:2px;
+  font-size:11px;
+  font-weight:700;
+  opacity:.9;
+}
+.cut-judge--perfect b{color:#7dffb0}
+.cut-judge--good b{color:#ffd56a}
+.cut-judge--wrong b{color:#ff9a4a}
+.cut-judge--early b,
+.cut-judge--late b{color:#ff6b7a}
+@keyframes cut-judge-pop{
+  0%{opacity:0;transform:translateX(-50%) translateY(8px) scale(.85)}
+  18%{opacity:1;transform:translateX(-50%) translateY(0) scale(1.08)}
+  70%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-18px) scale(.96)}
+}
+
 
 .cut-stage--burst{position:relative; margin:0 auto}
 .burst-clip{
@@ -1346,7 +1421,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   transition:transform .65s cubic-bezier(.22,.7,.25,1);
 }
 .game-stage .counter-scene.is-cutting.is-zoomed .kitchen-bg-img{
-  transform:scale(1.04)!important;
+  transform:scale(1.14)!important;
   transform-origin:center 55%;
 }
 
@@ -1374,12 +1449,12 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 }
 .game-stage .counter-scene.is-cutting .cut-board{
   position:absolute!important;
-  left:54%!important;
-  top:44%!important;
+  left:52%!important;
+  top:46%!important;
   width:auto!important;
-  transform:translate(-50%,-50%) scale(1.2)!important;
+  transform:translate(-50%,-50%) scale(1.42)!important;
   z-index:5;
-  transition:none;
+  transition:transform .45s cubic-bezier(.22,.7,.25,1);
 }
 .game-stage .cut-stack.is-passing-out{
   animation:boardPassOut .9s cubic-bezier(.4,.0,.2,1) forwards!important;
@@ -1576,9 +1651,9 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   .hud-bottom .actions .secondary{grid-column:1/-1; order:3}
   .cut-stack{width:min(92vw, 640px)}
   .game-stage .counter-scene.is-cutting .cut-board{
-    transform:translate(-50%,-50%) scale(1.05)!important;
+    transform:translate(-50%,-50%) scale(1.22)!important;
   }
-  .knife-hand.knife-hand--on-tomato{width:180px!important}
+  .knife-hand.knife-hand--on-tomato{width:200px!important}
   .cut-stack .pass-hand{width:52%; max-width:280px}
 }
 @media (max-height:720px){
@@ -1634,3 +1709,147 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
     bottom:180px;
   }
 }
+
+
+/* rhythm cut guide syllables */
+.cut-guide-syl{
+  position:absolute;
+  left:50%;
+  top:-1.35em;
+  transform:translateX(-50%);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0.02em;
+  color:#ffe29a;
+  text-shadow:0 1px 2px rgba(0,0,0,.55);
+  white-space:nowrap;
+  pointer-events:none;
+}
+.cut-guide.hot .cut-guide-syl{
+  color:#ff9a3c;
+  font-size:13px;
+}
+.cut-guide.done .cut-guide-syl{
+  opacity:.35;
+  color:#fff;
+}
+.cut-guide.miss{
+  border-left-color:#ff4d4d !important;
+  filter:drop-shadow(0 0 6px #ff4d4d);
+}
+.cut-guide.miss .cut-guide-syl{
+  color:#ff6b6b;
+  animation:cut-miss-pop .35s ease;
+}
+@keyframes cut-miss-pop{
+  0%{ transform:translateX(-50%) scale(1); }
+  40%{ transform:translateX(-50%) scale(1.25); }
+  100%{ transform:translateX(-50%) scale(1); }
+}
+
+/* 발음별 칼 방향 */
+.knife-hand.knife-hand--on-tomato.chopping-tak{animation:knifeChopTomato .22s cubic-bezier(.2,.8,.2,1)}
+.knife-hand.knife-hand--on-tomato.chopping-ssuk{animation:knifeSliceSsuk .42s ease-in-out}
+.knife-hand.knife-hand--on-tomato.chopping-ssak{animation:knifeScrapeSsak .28s ease-out}
+.knife-hand.knife-hand--on-tomato.chopping-chap{animation:knifeChopChap .16s ease-in}
+
+@keyframes knifeSliceSsuk{
+  0%{transform:translateX(-50%) rotate(-18deg) translateY(0)}
+  35%{transform:translateX(calc(-50% + 28px)) rotate(8deg) translateY(-6px)}
+  70%{transform:translateX(calc(-50% - 22px)) rotate(-32deg) translateY(4px)}
+  100%{transform:translateX(-50%) rotate(-18deg) translateY(0)}
+}
+@keyframes knifeScrapeSsak{
+  0%{transform:translateX(-50%) rotate(-18deg)}
+  45%{transform:translateX(-50%) rotate(-48deg) translateY(18px) scale(1.02)}
+  100%{transform:translateX(-50%) rotate(-18deg)}
+}
+@keyframes knifeChopChap{
+  0%,100%{transform:translateX(-50%) rotate(-18deg) translateY(0)}
+  50%{transform:translateX(-50%) rotate(-38deg) translateY(20px)}
+}
+
+/* 발음별 이펙트 */
+.chop-fx-ssuk:before{width:78px;height:4px;margin-top:0;background:linear-gradient(90deg,transparent,#fff8e0,#ffb060,transparent);box-shadow:0 0 12px #ffd080cc}
+.chop-fx-ssak:before{transform:translate(-50%,-50%) rotate(-35deg)}
+.chop-fx-chap:after{width:36px;height:36px}
+
+/* 가이드: 슥=가로선 */
+.guide-ssuk{border-left-style:solid!important;border-left-color:rgba(120,200,255,.5)!important}
+.guide-ssuk:after{
+  content:"";position:absolute;left:50%;top:50%;width:36px;height:0;
+  border-top:2px dashed rgba(120,200,255,.75);transform:translate(-50%,-50%) rotate(-8deg);
+}
+.guide-ssak{border-left-color:rgba(255,180,120,.55)!important}
+.guide-chap .cut-guide-syl{letter-spacing:-0.08em}
+
+/* 슥 홀드 링 */
+.cut-hold-ring{
+  position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
+  border-radius:50%;pointer-events:none;
+  background:conic-gradient(#6ec5ff calc(var(--hold-p,0)*360deg),transparent 0);
+  -webkit-mask:radial-gradient(circle,transparent 58%,#000 60%);
+  mask:radial-gradient(circle,transparent 58%,#000 60%);
+  opacity:0;transition:opacity .12s;
+}
+.cut-guide.is-holding .cut-hold-ring{opacity:.95}
+
+/* 발음별 단면/조각 */
+.burst-clip{position:relative;overflow:visible}
+.slice-edge{
+  position:absolute;top:0;bottom:0;width:6px;left:-3px;z-index:2;
+  background-size:cover;background-position:center;opacity:.85;pointer-events:none;
+}
+.slice-tak-edge{background:linear-gradient(180deg,transparent,#ffe8b8cc,transparent)}
+.slice-ssuk-edge{
+  width:100%;height:5px;left:0;top:50%;bottom:auto;transform:translateY(-50%);
+  background:linear-gradient(90deg,transparent,#a8d8ff99,#fff,transparent)!important;
+  box-shadow:0 1px 4px #0004;
+}
+.slice-ssak-edge{transform:skewY(-8deg);background:linear-gradient(180deg,#ffd08088,transparent)}
+.slice-chap-edge{width:8px;background:repeating-linear-gradient(180deg,#ffe0a0,#fff8 4px,#ffe0a0 8px)}
+
+.slice-ssuk img{border-radius:2px 6px 6px 2px}
+.slice-ssak img{clip-path:polygon(2% 0,100% 3%,98% 100%,0 97%)}
+.slice-chap img{filter:contrast(1.05) saturate(1.08)}
+.slice-tak .slice-edge,.slice-tak-edge{}
+
+.knife-hand.knife-hand--on-tomato[data-cut-mode="Ssuk"]{transform:translateX(-50%) rotate(8deg)}
+.knife-hand.knife-hand--on-tomato[data-cut-mode="Ssak"]{transform:translateX(-50%) rotate(-28deg)}
+.knife-hand.knife-hand--on-tomato[data-cut-mode="Chap"]{transform:translateX(-50%) rotate(-24deg) scale(0.96)}
+
+/* 고정 도마 — 컷해도 가이드/재료 위치 안 튐 */
+.cut-arena--fixed{
+  position:relative;
+  margin:0 auto;
+  flex-shrink:0;
+}
+.cut-slices-layer{
+  position:absolute;
+  inset:0;
+  z-index:1;
+}
+.cut-slices-layer .burst-clip{
+  position:absolute;
+  top:0;
+  overflow:hidden;
+  box-sizing:border-box;
+}
+.cut-slices-layer .burst-clip img{
+  object-fit:contain!important;
+  display:block;
+}
+.cut-slices-layer .burst-clip--bg{
+  image-rendering:pixelated;
+  background-repeat:no-repeat;
+}
+.cut-slices-layer .burst-clip.has-seam{
+  box-shadow:inset -2px 0 0 rgba(255,240,200,.35);
+}
+.cut-guides--arena{
+  position:absolute!important;
+  inset:0!important;
+  z-index:6!important;
+  pointer-events:none;
+}
+
