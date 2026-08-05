@@ -5,8 +5,9 @@
  * - 실제 자른 위치 그대로 조각 표시
  */
 
-const HIT_WINDOW = 0.1;
-const ASR_GRACE = 0.12;
+// 작은 음성 인식 지연만 보정하고, 점선에서 명확히 벗어난 컷은 실수로 본다.
+const HIT_WINDOW = 0.08;
+const ASR_GRACE = 0.1;
 const KNIFE_SPEED = 0.085;
 const PEAK_COOLDOWN_MS = 260;
 const CUT_SIZE_DEFAULT = 160;
@@ -348,7 +349,7 @@ async function finishSplit(session, { knifeEl, boardEl } = {}) {
   await wait(550);
 
   const misses = session.hitErrors.length;
-  const accuracy = Math.max(50, 94 - misses * 10);
+  const accuracy = Math.max(20, 100 - misses * 15);
   session.animating = false;
   session.onComplete?.(accuracy);
 }
