@@ -217,6 +217,8 @@ let boilLevel = -1;
 let boilFireLock = null;
 const BOIL_NEED_SEC = 9;
 const BOIL_LIMIT_SEC = 30;
+const boilAssetCheckCache = new Map();
+const boilAssetResolveCache = new Map();
 
 let mixingArmed = false;
 const mixingSession = createMixingSession();
@@ -693,26 +695,65 @@ function updateBoilPotImage(baseAsset, level) {
   const match = baseAsset.match(/^(.+?)_(\d+)\.png$/);
   if (!match) {
     // 숫자가 없으면 기본 파일 사용
-    pot.src = assetUrl(`./src/assets/끓이기/${baseAsset}`);
+    const directSrc = assetUrl(`./src/assets/끓이기/${baseAsset}`);
+    if (pot.dataset.boilAssetApplied !== directSrc) {
+      pot.src = directSrc;
+      pot.alt = baseAsset;
+      pot.dataset.boilAssetApplied = directSrc;
+    }
     return;
   }
 
   const basename = match[1];
   const targetNum = level + 1; // level 0→1, 1→2, 2→3
+  const desiredKey = `${basename}:${targetNum}`;
+  if (pot.dataset.boilAssetDesired === desiredKey) return;
+  pot.dataset.boilAssetDesired = desiredKey;
 
-  // 시도할 이미지 번호 (우선순위: targetNum → targetNum-1 → ... → 1)
-  let finalNum = targetNum;
-  for (let i = targetNum; i >= 1; i--) {
-    const candidate = `${basename}_${i}.png`;
-    // 현재는 존재 여부를 확인할 수 없으므로, 나중에 로드 실패 시 fallback 처리
-    // 일단 계산된 번호로 시도
-    finalNum = i;
-    break;
+  let resolvePromise = boilAssetResolveCache.get(desiredKey);
+  if (!resolvePromise) {
+    resolvePromise = (async () => {
+      for (let num = targetNum; num >= 1; num -= 1) {
+        const file = `${basename}_${num}.png`;
+        const src = assetUrl(`./src/assets/끓이기/${file}`);
+        const exists = await canLoadImage(src);
+        if (exists) return { file, src };
+      }
+      return null;
+    })();
+    boilAssetResolveCache.set(desiredKey, resolvePromise);
   }
 
-  const filename = `${basename}_${finalNum}.png`;
-  pot.src = assetUrl(`./src/assets/끓이기/${filename}`);
-  pot.alt = filename;
+  resolvePromise.then((resolved) => {
+    if (pot.dataset.boilAssetDesired !== desiredKey) return;
+    if (resolved) {
+      if (pot.dataset.boilAssetApplied !== resolved.src) {
+        pot.src = resolved.src;
+        pot.alt = resolved.file;
+        pot.dataset.boilAssetApplied = resolved.src;
+      }
+      return;
+    }
+    const fallback = assetUrl('./src/assets/도구/냄비_물.png');
+    if (pot.dataset.boilAssetApplied !== fallback) {
+      pot.src = fallback;
+      pot.alt = '물 든 냄비';
+      pot.dataset.boilAssetApplied = fallback;
+    }
+  });
+}
+
+function canLoadImage(src) {
+  const cached = boilAssetCheckCache.get(src);
+  if (cached) return cached;
+  const check = new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+  boilAssetCheckCache.set(src, check);
+  return check;
 }
 
 function hideMixingStage() {

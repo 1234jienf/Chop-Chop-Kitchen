@@ -1104,12 +1104,14 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   display:none !important;
 }
 
-/* Boil: pot on burner ? ���� ����(���� �Ʒ�)��, ȭ�� �ϴ����� ������ �ʰ� */.boil-stage{
+/* Boil: pot and fire can be positioned independently via CSS variables. */.boil-stage{
   --bowl-x: 50%;
+  --boil-stage-x: 49%;
+  --boil-stage-y: 53%;
   position:absolute;
   z-index:4;
-  left:49%;
-  top:53%;
+  left:var(--boil-stage-x);
+  top:var(--boil-stage-y);
   transform:translate(-50%,-50%);
   width:min(58%,420px);
   aspect-ratio:1.15;
@@ -1119,21 +1121,32 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 .boil-stage[hidden]{display:none!important}
 /* ���� �Ұ� ����� ����(����) �� ���� �ٴ� �� */
 .boil-stage .fire-img{
+  --boil-fire-x: 0px;
+  --boil-fire-y: 0px;
   left:50%;
   bottom:18%;
   width:52%;
   z-index:1;
   transform-origin:center bottom;
+  transform:translate(calc(-50% + var(--boil-fire-x)), var(--boil-fire-y)) scale(var(--fire-scale, 1));
+  animation:boilFireFlicker .28s ease-in-out infinite alternate;
 }
 .boil-stage .fire-img[data-band="low"]{--fire-scale:0.82}
 .boil-stage .fire-img[data-band="mid"]{--fire-scale:0.95}
 .boil-stage .fire-img[data-band="high"]{--fire-scale:1.1}
+@keyframes boilFireFlicker{
+  0%{transform:translate(calc(-50% + var(--boil-fire-x)), var(--boil-fire-y)) scale(var(--fire-scale,.92), var(--fire-scale,.92))}
+  100%{transform:translate(calc(-50% + var(--boil-fire-x)), var(--boil-fire-y)) scale(calc(var(--fire-scale,.92) * 1.04), calc(var(--fire-scale,.92) * 0.94))}
+}
 .pot-img{
+  --boil-pot-x: 0px;
+  --boil-pot-y: 0px;
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
   object-fit:contain;
+  transform:translate(var(--boil-pot-x), var(--boil-pot-y));
   z-index:2;
   filter:drop-shadow(0 16px 14px #0007);
   pointer-events:none;
