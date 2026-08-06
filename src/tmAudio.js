@@ -16,8 +16,8 @@ const MODEL_URL = new URL('./tm-audio/', import.meta.url).href;
 const BG = '배경 소음';
 const CUT_LABELS = ['Tak', 'Ssuk', 'Ssak', 'Chap'];
 const CUT_SET = new Set(CUT_LABELS);
-const CUT_COOLDOWN_MS = 260;
-const OTHER_COOLDOWN_MS = { Huu: 280, Ting: 350 };
+const CUT_COOLDOWN_MS = 420;
+const OTHER_COOLDOWN_MS = { Huu: 320, Ting: 400 };
 const TARGET_SAMPLE_RATE = 44100;
 
 let recognizer = null;
@@ -81,7 +81,7 @@ function restoreAudioContext() {
   audioContextPatched = false;
 }
 
-/** 컷 라벨 중 1·2등 */
+/** 컷 라벨 중 1·2등 — prefer는 거의 동점일 때만 살짝 보정 */
 function topTwoCuts(map, prefer) {
   const ranked = CUT_LABELS
     .map((label) => ({ label, score: map[label] || 0 }))
@@ -90,10 +90,10 @@ function topTwoCuts(map, prefer) {
   let first = ranked[0];
   let second = ranked[1] || { label: null, score: 0 };
 
-  // 가이드 라벨이 1등에 가까우면 우선
   if (prefer && CUT_SET.has(prefer)) {
     const prefScore = map[prefer] || 0;
-    if (prefScore >= cutThreshold && prefScore >= first.score - 0.08) {
+    // 약한 prefer로 억지 승격 금지
+    if (prefScore >= Math.max(cutThreshold, 0.36) && prefScore >= first.score - 0.04) {
       second = first.label === prefer ? second : first;
       first = { label: prefer, score: prefScore };
     }
@@ -177,15 +177,30 @@ export async function startTmListen(handler, opts) {
         const bgScore = bgIndex >= 0 ? (map[labels[bgIndex]] || 0) : 0;
         const prefer = typeof preferCutLabel === 'function' ? preferCutLabel() : null;
         const now = performance.now();
+
+        // 전체 라벨 1등이 배경/기타면 컷 금지 (이상한 소리 오탐의
+        let overallLabel = labels[0];
+        let overallScore = map[overallLabel] || 0;
+        for (let i = 1; i < labels.length; i++) {
+          const s = map[labels[i]] || 0;
+          if (s > overallScore) {
+            overallScore = s;
+            overallLabel = labels[i];
+          }
+        }
+        if (!CUT_SET.has(overallLabel)) {
+          pendingLabel = null;
+          pendingCount = 0;
+          emitDebug(map, bgScore, null);
+          return;
+        }
+
         const { first, second } = topTwoCuts(map, prefer);
         const margin = first.score - second.score;
-        const vsBg = first.score >= bgScore - 0.08;
-        // 한 프레임만 튀는 경우가 많아서, 마진이 크면 즉시 HIT
-        const strong = vsBg && (
-          (first.score >= 0.32 && margin >= 0.06)
-          || (first.score >= 0.28 && margin >= 0.12)
-        );
-        const ok = first.score >= cutThreshold && margin >= 0.05 && vsBg;
+        // 배경을 확실히 이겨야 함
+        const vsBg = first.score >= bgScore + 0.12 && bgScore < 0.55;
+        const strong = vsBg && first.score >= 0.48 && margin >= 0.12;
+        const ok = vsBg && first.score >= cutThreshold && margin >= 0.10;
 
         const fireCut = (label, score) => {
           if (now - (lastFire._cut || 0) < CUT_COOLDOWN_MS) {
@@ -211,18 +226,13 @@ export async function startTmListen(handler, opts) {
           emitDebug(map, bgScore, 'HIT ' + label + ' ' + Math.round(score * 100) + '%');
         };
 
-        // 확실하면 1프레임 즉시 HIT (Ssuk58 같은 스파이크가 2프레임 못 버티던 문제)
         if (strong) {
           fireCut(first.label, first.score);
           return;
         }
 
         if (!ok) {
-          // 직전 후보가 있으면 한 프레임 정도는 낮은 점수로도 확정 허용
-          if (pendingLabel && (map[pendingLabel] || 0) >= 0.22 && now - (lastFire._pendAt || 0) < 260) {
-            fireCut(pendingLabel, map[pendingLabel] || first.score);
-            return;
-          }
+          // 약한 후보 확정 경로 제거 — 오탐의
           pendingLabel = null;
           pendingCount = 0;
           emitDebug(map, bgScore, null);
@@ -236,10 +246,10 @@ export async function startTmListen(handler, opts) {
           emitDebug(
             map,
             bgScore,
-            pendingCount < 1 ? ('후보 ' + first.label + Math.round(first.score * 100)) : null,
+            pendingCount < 3 ? ('후보 ' + first.label + Math.round(first.score * 100)) : null,
           );
-          // 1프레임 후보만으로도 HIT (반응 빠르게)
-          if (pendingCount >= 1) {
+          // 3프레임 연속이어야 HIT
+          if (pendingCount >= 3) {
             fireCut(first.label, first.score);
             return;
           }

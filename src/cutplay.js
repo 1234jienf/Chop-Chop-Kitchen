@@ -5,22 +5,22 @@
  * - 발음별 칼 방향 · 단면 느낌
  */
 
-const HIT_WINDOW = 0.24;
-const ASR_GRACE = 0.2;
-const HOT_BEFORE = 0.24;
-const HOT_AFTER = 0.2;
-const SOON_BEFORE = 0.38;
+const HIT_WINDOW = 0.2;
+const ASR_GRACE = 0.16;
+const HOT_BEFORE = 0.2;
+const HOT_AFTER = 0.16;
+const SOON_BEFORE = 0.34;
 const KNIFE_SPEED = 0.11;
-const PEAK_COOLDOWN_MS = 50;
-const POST_CUT_LOCK_MS = 120;
-const CUT_ADVANCE_MIN = 0.04;
+const PEAK_COOLDOWN_MS = 60;
+const POST_CUT_LOCK_MS = 160;
+const CUT_ADVANCE_MIN = 0.045;
 const CUT_SIZE_DEFAULT = 240;
-const MISS_COOLDOWN_MS = 90;
-const HOLD_GAP_MS = 240;
+const MISS_COOLDOWN_MS = 120;
+const HOLD_GAP_MS = 260;
 const MAX_KNIFE_PASSES = 1;
-const TM_HOT_GRACE_MS = 380;
-const PENDING_CHOP_MS = 200;
-const EARLY_QUEUE = 0.18;
+const TM_HOT_GRACE_MS = 320;
+const PENDING_CHOP_MS = 220;
+const EARLY_QUEUE = 0.28;
 
 /** 도마 위 표시 크기 — 크게 해서 점선 간격이 보이게 */
 const CUT_LAYOUT_BY_FILE = {
@@ -690,7 +690,8 @@ function executeCut(session, index, label, { knifeEl, boardEl, grade = 'good', s
 }
 
 /**
- * 리듬게임형 — 발음하면 일단 자르고, 판정(PERFECT/GOOD/WRONG/EARLY/LATE)만 UI로
+ * 리듬게임형 — 발음하면 자르고, 판정(PERFECT/GOOD/WRONG/EARLY/LATE)만 UI로.
+ * (칼이 아주 멀리 있을 때만 컷 보류)
  */
 export function feedCutVoice(session, label, ctx = {}) {
   if (!session.listening || session.finished || session.animating || session.autoFinishPending) return 'idle';
@@ -706,9 +707,12 @@ export function feedCutVoice(session, label, ctx = {}) {
   const index = nextOpenMarkIndex(session);
   if (index < 0) return 'complete';
 
-  if (session.knifeX < (session.cutGateX || 0) - 0.02) {
-    const d = session.knifeX - session.marks[index];
-    if (d < -EARLY_QUEUE - 0.08) return 'miss-advance';
+  const d = session.knifeX - session.marks[index];
+  // 칼이 아직 한참 앞일 때만 보류
+  if (d < -EARLY_QUEUE - 0.2) {
+    flashGuideMiss(ctx.boardEl, index);
+    session.onStatus?.('칼이 조금 더 온 뒤!');
+    return 'miss-advance';
   }
 
   session._voiceBusy = true;
