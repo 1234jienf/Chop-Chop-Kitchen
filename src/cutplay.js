@@ -5,21 +5,22 @@
  * - 발음별 칼 방향 · 단면 느낌
  */
 
-const HIT_WINDOW = 0.18;
-const ASR_GRACE = 0.16;
-const HOT_BEFORE = 0.14;
-const HOT_AFTER = 0.12;
+const HIT_WINDOW = 0.24;
+const ASR_GRACE = 0.2;
+const HOT_BEFORE = 0.24;
+const HOT_AFTER = 0.2;
+const SOON_BEFORE = 0.38;
 const KNIFE_SPEED = 0.11;
-const PEAK_COOLDOWN_MS = 70;
-const POST_CUT_LOCK_MS = 200;
-const CUT_ADVANCE_MIN = 0.045;
+const PEAK_COOLDOWN_MS = 50;
+const POST_CUT_LOCK_MS = 120;
+const CUT_ADVANCE_MIN = 0.04;
 const CUT_SIZE_DEFAULT = 200;
-const MISS_COOLDOWN_MS = 120;
-const HOLD_GAP_MS = 300;
+const MISS_COOLDOWN_MS = 90;
+const HOLD_GAP_MS = 240;
 const MAX_KNIFE_PASSES = 1;
-const TM_HOT_GRACE_MS = 220;
-const PENDING_CHOP_MS = 280;
-const EARLY_QUEUE = 0.14;
+const TM_HOT_GRACE_MS = 380;
+const PENDING_CHOP_MS = 200;
+const EARLY_QUEUE = 0.18;
 
 /** 도마 위 표시 크기 — 크게 해서 점선 간격이 보이게 */
 const CUT_LAYOUT_BY_FILE = {
@@ -430,6 +431,49 @@ export function updateHotGuide(session) {
   const hot = d >= -HOT_BEFORE && d <= HOT_AFTER ? nextIdx : -1;
   if (hot >= 0) session.lastHotAt = performance.now();
   session.hotGuideIndex = hot;
+  return hot;
+}
+
+/**
+ * 언제 자를지 보이게: next(다음) → soon(다가옴) → hot(지금!)
+ * + 보드 아래 힌트 문구
+ */
+export function syncCutTimingUi(session, boardEl) {
+  if (!session || !boardEl) return -1;
+  const nextIdx = nextOpenMarkIndex(session);
+  const hot = updateHotGuide(session);
+  const guides = boardEl.querySelectorAll('.cut-guide');
+  let soon = false;
+  if (nextIdx >= 0 && hot < 0) {
+    const d = session.knifeX - session.marks[nextIdx];
+    soon = d >= -SOON_BEFORE && d < -HOT_BEFORE;
+  }
+  if (guides?.length) {
+    guides.forEach((el, i) => {
+      el.classList.toggle('done', Boolean(session.cutDone[i]));
+      el.classList.toggle('hot', i === hot);
+      el.classList.toggle('next', i === nextIdx && hot < 0 && !soon);
+      el.classList.toggle('soon', i === nextIdx && soon);
+    });
+  }
+
+  const hint = boardEl.querySelector('.cut-hint');
+  if (hint) {
+    const need = nextRequiredLabel(session);
+    const ko = need ? (CUT_LABEL_KO[need] || need) : '';
+    const n = session.actualCuts.length;
+    const total = needCuts(session);
+    const hold = need === 'Ssuk' ? '~' : '';
+    if (!ko) {
+      hint.innerHTML = `완료 · ${n}/${total}`;
+    } else if (hot >= 0) {
+      hint.innerHTML = `<span class="cut-hint-now">지금 「<b>${ko}${hold}</b>」!</span> · ${n}/${total}`;
+    } else if (soon) {
+      hint.innerHTML = `<span class="cut-hint-soon">곧 「<b>${ko}${hold}</b>」</span> · 칼이 선에 오면 · ${n}/${total}`;
+    } else {
+      hint.innerHTML = `다음 「<b>${ko}${hold}</b>」 · 주황 선에서 말해요 · ${n}/${total}`;
+    }
+  }
   return hot;
 }
 
@@ -885,13 +929,13 @@ export async function playCannedCut(session, { knifeEl, boardEl, onProgress } = 
 }
 
 function cutHintText(session) {
-  const chart = (session.requiredLabels || []).map((l) => {
-    const st = styleFor(l);
-    return st.ko + (st.holdMs ? '~' : '');
-  }).join(' · ');
+  const need = nextRequiredLabel(session);
+  const ko = need ? (CUT_LABEL_KO[need] || need) : '';
+  const hold = need === 'Ssuk' ? '~' : '';
   const n = session.actualCuts.length;
   const total = needCuts(session);
-  return n ? `${chart} · ${n}/${total}` : `리듬 ${chart} · 주황 점선+발음 (슥=길게)`;
+  if (!ko) return `완료 · ${n}/${total}`;
+  return `다음 「${ko}${hold}」 · 주황 선에서 말해요 · ${n}/${total}`;
 }
 
 function ensureCutStage(root, session) {
@@ -931,7 +975,7 @@ function patchCutBoard(root, session, opts = {}) {
   const hint = root.querySelector('.cut-hint');
   if (layer) layer.innerHTML = parts;
   if (guidesEl) guidesEl.innerHTML = guidesHtml(session);
-  if (hint) hint.textContent = cutHintText(session);
+  if (hint) hint.innerHTML = cutHintText(session).replace(/「([^」]+)」/, '「<b>$1</b>」');
 }
 
 export function renderLiveTomato(root, session, opts = {}) {

@@ -268,8 +268,55 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 }
 
 /* Cut play: tomato-local knife, scene stays clipped */
-.cut-hint{margin:8px 0 0; text-align:center; color:#e8d7c0; font-size:.75rem; font-weight:600}
+.cut-hint{margin:8px 0 0; text-align:center; color:#e8d7c0; font-size:.78rem; font-weight:600; letter-spacing:.01em}
 .cut-hint b{color:#ff8a2a}
+.cut-hint-now{color:#ffe7c2}
+.cut-hint-now b{color:#ff9a3c; font-size:1.08em}
+.cut-hint-soon b{color:#ffb45c}
+
+.cut-guide.next{
+  border-left-color:rgba(255,210,120,.85)!important;
+  border-left-width:2px!important;
+  opacity:1;
+}
+.cut-guide.next .cut-guide-syl{
+  color:#ffe29a;
+  opacity:1;
+}
+.cut-guide.soon{
+  border-left-color:#ffb45c!important;
+  border-left-width:3px!important;
+  filter:drop-shadow(0 0 5px #ffb45c88);
+  animation:cutGuideSoon .7s ease-in-out infinite;
+}
+.cut-guide.soon .cut-guide-syl{
+  color:#ffc878;
+  font-size:13px;
+}
+@keyframes cutGuideSoon{
+  0%,100%{ opacity:.85; }
+  50%{ opacity:1; }
+}
+.cut-guide.hot{
+  border-left-color:#ff8a2a!important;
+  border-left-width:4px!important;
+  filter:drop-shadow(0 0 8px #ff8a2acc);
+  animation:cutGuideHot .45s ease-in-out infinite;
+}
+.cut-guide.hot .cut-guide-syl{
+  color:#ff9a3c;
+  font-size:15px;
+  font-weight:800;
+  animation:cutSylPop .45s ease-in-out infinite;
+}
+@keyframes cutGuideHot{
+  0%,100%{ filter:drop-shadow(0 0 6px #ff8a2a99); }
+  50%{ filter:drop-shadow(0 0 12px #ff8a2aee); }
+}
+@keyframes cutSylPop{
+  0%,100%{ transform:translateX(-50%) scale(1); }
+  50%{ transform:translateX(-50%) scale(1.12); }
+}
 
 .counter-scene.is-cutting{
   overflow:hidden!important;
@@ -392,11 +439,6 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   0%{opacity:0; filter:brightness(1.4)}
   18%{opacity:1}
   100%{opacity:0; transform:translate(-50%,-50%) scale(1.55)}
-}
-.cut-guide.hot{
-  border-left-color:#ff8a2a!important;
-  border-left-width:3px!important;
-  filter:drop-shadow(0 0 6px #ff8a2acc);
 }
 .cut-guide.done{opacity:.28}
 .cut-guide.done-perfect{
