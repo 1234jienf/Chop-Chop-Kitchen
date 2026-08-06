@@ -1174,8 +1174,8 @@ function renderBoilStage(stepData) {
   }
 
   $('#stationIcon').hidden = true;
-  $('#micStatus').textContent = '마이크 켜고 「보글보글」 · 물이 끓어요';
-  $('#stepHint').textContent = `목표 소리 “${stepData.targetPattern}” · ${stepData.hint || '보글보글 하면 기포가 세져요'}`;
+  $('#micStatus').textContent = `${BOIL_NEED_SEC}초동안 후~ 불어주세요`;
+  $('#stepHint').textContent = `${BOIL_NEED_SEC}초동안 후~ 불어주세요`;
 }
 
 /** 섞기: 보울 + 섞기 이미지 + 가이드 대본 */
@@ -2035,13 +2035,6 @@ function handleTmLabel({ label, score }) {
       applyTakHit('VOICE ' + label + ' ' + pct + '%', { label: label });
       return true;
     }
-    if (boilArmed && isBoilingStep(current)) {
-      tmChapUntil = now + 700;
-      tmBoostUntil = now + 700;
-      var el1 = document.querySelector('#micStatus');
-      if (el1) el1.textContent = 'VOICE ' + label + ' ' + pct + '% boil';
-      return true;
-    }
     if (mixingArmed && isMixingStep(current)) {
       tmBoostUntil = now + 600;
       var el2 = document.querySelector('#micStatus');
@@ -2358,18 +2351,18 @@ function tickLiveMic(ts) {
 
   if (boilArmed && isBoilingStep(current)) {
     boilElapsed += dt;
-    const tmBubble = performance.now() < tmChapUntil || performance.now() < tmBoostUntil;
+    const tmBubble = performance.now() < tmHuuUntil || performance.now() < tmBoostUntil;
     const bubbling = micOn && (volumePercent >= 14 || tmBubble);
     const stage = $('#boilStage');
     stage?.classList.toggle('is-bubbling', bubbling);
     if (bubbling) boilProgress = Math.min(BOIL_NEED_SEC, boilProgress + dt);
     else boilProgress = Math.max(0, boilProgress - dt * 0.15);
     syncBoilFx();
-    const labels = ['약하게', '보글보글', '팔팔'];
+    const labels = ['약불', '중불', '강불'];
     if (micOn) {
       $('#micStatus').textContent = bubbling
-        ? `${labels[boilLevel] || '보글'} · ${Math.round((boilProgress / BOIL_NEED_SEC) * 100)}%`
-        : `더 「보글보글」 해요 · ${labels[Math.max(0, boilLevel)] || '약하게'}`;
+        ? `후우~ · ${labels[boilLevel] || '중불'} · ${Math.round((boilProgress / BOIL_NEED_SEC) * 100)}%`
+        : `쉬면 천천히 약불로… · 현재 ${labels[Math.max(0, boilLevel)] || '약불'}`;
     }
     if (boilProgress >= BOIL_NEED_SEC) {
       const score = boilElapsed <= 13
@@ -2607,7 +2600,7 @@ $('#micBtn').addEventListener('click', async () => {
         : roastArmed
           ? '마이크 끔 · 게이지는 약불로 내려감'
           : boilArmed
-            ? '마이크 끔 · 보글보글이 약해져요'
+            ? '마이크 끔 · 화력이 천천히 내려가요'
             : mixingArmed
               ? '마이크 끔 · 섞기가 멈춤'
               : '마이크를 켜거나 테스트 입력을 사용하세요.';
@@ -2653,7 +2646,7 @@ $('#micBtn').addEventListener('click', async () => {
       $('#micStatus').textContent = ok ? '오븐 듣는 중 · 「띵」으로 끄세요' : '음성인식 불가 · 버튼으로 진행';
     } else if (boilArmed) {
       stopTakSpeech();
-      $('#micStatus').textContent = '「보글보글」 · 기포가 올라와요';
+      $('#micStatus').textContent = `${BOIL_NEED_SEC}초동안 후~ 불어주세요`;
     } else if (mixingArmed) {
       stopTakSpeech();
       const ok = startMixingSpeech();
@@ -2686,7 +2679,7 @@ $('#micBtn').addEventListener('click', async () => {
     } else if (tmOk && roastArmed) {
       $('#micStatus').textContent = 'TM ON · 「후우~」불어 강불';
     } else if (tmOk && boilArmed) {
-      $('#micStatus').textContent = 'TM ON · 「보글」 Chap/Tak';
+      $('#micStatus').textContent = `TM ON · ${BOIL_NEED_SEC}초동안 후~ 불어주세요`;
     }
     if (!animationId) animationId = requestAnimationFrame(tickLiveMic);
   } catch (error) {
