@@ -177,6 +177,8 @@ async def multiplayer_socket(ws: WebSocket):
                 room.results = []
                 room.ingredient_cuts = {}
                 room.station_open = False
+                for member in room.players.values():
+                    member.ready = False
                 if isinstance(message.get("sharedState"), dict):
                     room.shared_state = message["sharedState"]
             await broadcast(room)

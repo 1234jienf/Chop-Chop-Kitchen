@@ -5,7 +5,7 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=59';
+} from './data.js?v=60';
 import {
   calculateResult,
   createGameState,
@@ -16,7 +16,7 @@ import {
   rememberIngredientCuts,
   startNextDay,
   submitStep,
-} from './state.js?v=60';
+} from './state.js?v=61';
 import {
   advanceKnife,
   attachKnifeToTomato,
@@ -197,6 +197,8 @@ let ovenArmed = false;
 let inStation = false;
 /** 멀티 게임의 첫 스냅샷과 단계 전환을 구분하기 위한 플래그 */
 let sharedGameInitialized = false;
+/** 다음 날 식당 화면부터 다시 시작하고 세 플레이어의 준비를 기다리는 상태 */
+let awaitingNextDayReady = false;
 let ovenStartTimer = null;
 let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
 let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
@@ -1808,6 +1810,7 @@ function renderGame() {
 
 function applySharedSnapshot(snapshot) {
   const game = snapshot.game;
+  const previousDay = state.day;
   const previousStepIndex = state.currentStep;
   const isFirstSharedSnapshot = !sharedGameInitialized;
   const previousStep = getSteps(state)[previousStepIndex];
@@ -1825,12 +1828,22 @@ function applySharedSnapshot(snapshot) {
   state.ingredientCuts = { ...game.ingredientCuts };
   state.finished = state.currentStep >= getSteps(state).length;
   sharedGameInitialized = true;
+  const dayChanged = state.day !== previousDay;
+  if (dayChanged) awaitingNextDayReady = true;
+  const everyoneReady = snapshot.players.length === 3
+    && snapshot.players.every((player) => player.ready);
   const stepChanged = state.currentStep !== previousStepIndex;
   const completedCourse = state.currentStep === previousStepIndex + 1
     ? completedCourseAt(getSteps(state), previousStepIndex)
     : null;
   if (stepChanged) boardHandoffToken += 1;
-  if (state.finished) {
+  if (awaitingNextDayReady && !everyoneReady) {
+    inStation = false;
+    if (dayChanged) showScreen('restaurant');
+  } else if (awaitingNextDayReady) {
+    awaitingNextDayReady = false;
+    openKitchenMap();
+  } else if (state.finished) {
     inStation = false;
     renderResult();
     showScreen('result');
@@ -2013,10 +2026,13 @@ on($('#missBtn'), 'click', async () => {
 });
 on($('#nextDayBtn'), 'click', () => {
   startNextDay(state);
-  if (multiplayer.connected) multiplayer.nextDay({
-    day: state.day, money: state.money, grade: state.grade, guest: state.guest,
-    menu: state.menu,
-  });
+  if (multiplayer.connected) {
+    awaitingNextDayReady = true;
+    multiplayer.nextDay({
+      day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+      menu: state.menu,
+    });
+  }
   showScreen('restaurant');
 });
 

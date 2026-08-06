@@ -439,7 +439,16 @@ export function createMenuForGuest(guest, random = Math.random) {
         recipe.steps.some((s) => s.action === targetAction)
     );
 
-    // 난이도에 맞는 음식이 없으면 같은 카테고리의 모든 음식 사용
+    // 선호 공정까지 맞는 음식이 없으면 난이도를 우선해 같은 카테고리에서 선택
+    if (categoryRecipes.length === 0) {
+      categoryRecipes = RECIPE_CATALOG.filter(
+        (recipe) =>
+          recipe.category === category &&
+          recipe.level === targetRecipeLevel
+      );
+    }
+
+    // 해당 난이도의 음식도 없을 때만 선호 공정이 있는 다른 난이도를 사용
     if (categoryRecipes.length === 0) {
       categoryRecipes = RECIPE_CATALOG.filter(
         (recipe) =>
@@ -448,7 +457,7 @@ export function createMenuForGuest(guest, random = Math.random) {
       );
     }
 
-    // 그래도 없으면 같은 카테고리의 모든 음식 (보너스 타입 상관없이)
+    // 그래도 없으면 같은 카테고리의 모든 음식 사용
     if (categoryRecipes.length === 0) {
       categoryRecipes = RECIPE_CATALOG.filter(
         (recipe) => recipe.category === category
@@ -501,9 +510,10 @@ export const GUESTS = [
 ];
 
 export function getGuestLevel(state) {
-  const dayLevel = Number(state?.day || 1);
-  if (!Number.isFinite(dayLevel)) return 1;
-  return Math.max(1, Math.min(3, Math.floor(dayLevel)));
+  const day = Math.max(1, Math.floor(Number(state?.day) || 1));
+  if (day === 1) return 1;
+  if (day <= 3) return 2;
+  return 3;
 }
 
 function guestDemandForMenu(guest, menu) {
