@@ -1,27 +1,31 @@
 /**
- * 굽기 화력: 후우~로 올리고, 안 불면 천천히 식음.
- * 목표 화력(약/중/강)이 시간에 따라 바뀌는 리듬 미니게임.
+ * 굽기 화력: 후우~로 올리고, 안 불면 식음.
+ * 약 12초 세션 동안 목표 화력(약/중/강)을 맞춘 비율로 점수.
  */
 
 export const HEAT_START = 50;
-export const HEAT_DECAY_PER_SEC = 5.5;
-export const HEAT_GAIN_PER_SEC = 22;
-export const BLOW_THRESHOLD = 16;
+/** 안 불면 식음 (잡음에 안 올라가게 유지) */
+export const HEAT_DECAY_PER_SEC = 12;
+/** 후우~로 올리는 속도 */
+export const HEAT_GAIN_PER_SEC = 28;
+/** 후우~ 판정 */
+export const BLOW_THRESHOLD = 24;
 
-/** 목표 밴드 시퀀스: 인접 단계만, 여유 시간 길게 */
+/** 세션 총 시간 (이 시간이 되면 무조건 종료·점수) */
+export const ROAST_DURATION_SEC = 12;
+
+/** 12초 안에 목표 화력이 바뀌는 리듬 */
 const TARGET_SCRIPT = [
-  ['mid', 9],
-  ['high', 11],
-  ['mid', 10],
-  ['low', 11],
-  ['mid', 9],
-  ['high', 12],
+  ['mid', 4.5],
+  ['high', 4],
+  ['low', 3.5],
 ];
 
-const BAND_CENTER = { low: 17, mid: 50, high: 83 };
-const BAND_HALF = 16;
-const TARGET_WARN_SEC = 3.5;
-const TARGET_BLEND_SEC = 2.2;
+const BAND_CENTER = { low: 18, mid: 50, high: 82 };
+/** 목표 구간 넓혀서 맞추기 쉽게 */
+const BAND_HALF = 22;
+const TARGET_WARN_SEC = 1.6;
+const TARGET_BLEND_SEC = 1.4;
 
 const FIRE_SRC = {
   low: './src/assets/불/약불.png',
@@ -50,16 +54,17 @@ export function createRoastHeat() {
     blendToMax: BAND_CENTER.mid + BAND_HALF,
     blendT: 1,
     elapsed: 0,
+    duration: ROAST_DURATION_SEC,
     scriptIndex: 0,
     segmentLeft: TARGET_SCRIPT[0][1],
+    /** UI 진행 바: 세션 진행률과 동기 */
     matchTime: 0,
-    needMatch: 14,
+    needMatch: ROAST_DURATION_SEC,
     peakToastProgress: 0,
     totalInZoneTime: 0,
     blowing: false,
     active: false,
     done: false,
-    debugLock: false,
   };
 }
 
@@ -108,31 +113,41 @@ function tickTargetBlend(session, dtSec) {
 }
 
 function peekNextBand(session) {
-  const nextIdx = (session.scriptIndex + 1) % TARGET_SCRIPT.length;
+  const nextIdx = session.scriptIndex + 1;
+  if (nextIdx >= TARGET_SCRIPT.length) return null;
   return TARGET_SCRIPT[nextIdx][0];
 }
 
 function advanceTarget(session, dtSec) {
-  session.elapsed += dtSec;
   session.segmentLeft -= dtSec;
   session.nextTargetBand = session.segmentLeft <= TARGET_WARN_SEC ? peekNextBand(session) : null;
 
-  while (session.segmentLeft <= 0) {
-    session.scriptIndex = (session.scriptIndex + 1) % TARGET_SCRIPT.length;
+  while (session.segmentLeft <= 0 && session.scriptIndex < TARGET_SCRIPT.length - 1) {
+    session.scriptIndex += 1;
     const [band, dur] = TARGET_SCRIPT[session.scriptIndex];
     session.segmentLeft += dur;
     applyTarget(session, band, { blend: true });
     session.nextTargetBand = null;
   }
+  if (session.scriptIndex >= TARGET_SCRIPT.length - 1 && session.segmentLeft < 0) {
+    session.segmentLeft = 0;
+    session.nextTargetBand = null;
+  }
   tickTargetBlend(session, dtSec);
+}
+
+export function roastTimeLeft(session) {
+  if (!session) return 0;
+  return Math.max(0, (session.duration || ROAST_DURATION_SEC) - (session.elapsed || 0));
 }
 
 export function roastTargetHint(session) {
   if (!session?.active) return '';
+  const left = Math.max(1, Math.ceil(roastTimeLeft(session)));
   if (session.nextTargetBand) {
-    return `곧 ${bandLabel(session.nextTargetBand)} · ${Math.max(1, Math.ceil(session.segmentLeft))}초`;
+    return `곧 ${bandLabel(session.nextTargetBand)} · 남은 ${left}초`;
   }
-  return `${Math.max(1, Math.ceil(session.segmentLeft))}초`;
+  return `남은 ${left}초`;
 }
 
 /**
@@ -142,11 +157,7 @@ export function roastTargetHint(session) {
 export function tickRoastHeat(session, volumePercent, dtSec) {
   if (!session?.active || session.done) return session?.band || 'mid';
 
-  if (session.debugLock) {
-    session.blowing = volumePercent >= BLOW_THRESHOLD;
-    return session.band;
-  }
-
+  session.elapsed += dtSec;
   advanceTarget(session, dtSec);
 
   const blowing = volumePercent >= BLOW_THRESHOLD;
@@ -156,30 +167,35 @@ export function tickRoastHeat(session, volumePercent, dtSec) {
 
   if (blowing) {
     const strength = Math.min(1, (volumePercent - BLOW_THRESHOLD) / 45);
-    session.heat += HEAT_GAIN_PER_SEC * (0.35 + strength * 0.55) * dtSec;
+    session.heat += HEAT_GAIN_PER_SEC * (0.4 + strength * 0.5) * dtSec;
   } else {
+    // 안 불면 빠르게 식혀 약불로
     let decay = HEAT_DECAY_PER_SEC;
-    if (overheated) decay *= 2.2;
-    else if (session.heat > targetCenter) decay *= 1.45;
+    if (overheated) decay *= 1.8;
+    else if (session.heat > targetCenter) decay *= 1.35;
     session.heat -= decay * dtSec;
   }
 
   session.heat = Math.max(0, Math.min(100, session.heat));
   session.band = heatBand(session.heat);
 
+  // 목표 밴드와 현재 불이 같으면(또는 게이지 구간 안이면) 맞춤 시간 가산
   const inZone = session.heat >= session.targetMin && session.heat <= session.targetMax;
-  if (inZone) {
-    session.matchTime += dtSec;
+  const bandMatch = session.band === session.targetBand;
+  if (inZone || bandMatch) {
     session.totalInZoneTime += dtSec;
-  } else {
-    session.matchTime = Math.max(0, session.matchTime - dtSec * 0.12);
   }
 
-  const progress = session.matchTime / Math.max(1, session.needMatch);
-  session.peakToastProgress = Math.max(session.peakToastProgress || 0, progress);
+  const duration = session.duration || ROAST_DURATION_SEC;
+  session.matchTime = Math.min(duration, session.elapsed);
+  session.needMatch = duration;
+  const progress = session.elapsed / Math.max(0.001, duration);
+  session.peakToastProgress = Math.max(session.peakToastProgress || 0, Math.min(1, progress));
 
-  if (session.matchTime >= session.needMatch) {
+  if (session.elapsed >= duration) {
     session.done = true;
+    session.elapsed = duration;
+    session.matchTime = duration;
   }
 
   return session.band;
@@ -191,15 +207,15 @@ export function resetRoastHeat(session) {
   session.scriptIndex = 0;
   session.segmentLeft = TARGET_SCRIPT[0][1];
   session.elapsed = 0;
+  session.duration = ROAST_DURATION_SEC;
   session.matchTime = 0;
-  session.needMatch = 14;
+  session.needMatch = ROAST_DURATION_SEC;
   session.peakToastProgress = 0;
   session.totalInZoneTime = 0;
   session.nextTargetBand = null;
   session.blendT = 1;
   session.blowing = false;
   session.done = false;
-  session.debugLock = false;
   session.active = true;
   applyTarget(session, TARGET_SCRIPT[0][0], { blend: false });
 }
@@ -218,8 +234,12 @@ export function stopRoastHeat(session) {
   session.blowing = false;
 }
 
+/** 목표 화력에 맞춘 비율 → 20~100점 */
 export function roastAccuracy(session) {
   if (!session) return 20;
-  const stayRatio = Math.min(1, session.totalInZoneTime / Math.max(0.001, session.elapsed));
-  return Math.round(20 + Math.min(1, stayRatio / 0.9) * 80);
+  const duration = Math.max(0.001, session.duration || ROAST_DURATION_SEC);
+  const elapsed = Math.max(0.001, Math.min(duration, session.elapsed || duration));
+  const stayRatio = Math.min(1, (session.totalInZoneTime || 0) / elapsed);
+  // 75%만 맞춰도 만점권
+  return Math.round(20 + Math.min(1, stayRatio / 0.75) * 80);
 }

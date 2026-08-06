@@ -33,7 +33,7 @@ import {
   nextRequiredStyle,
   tickCutVoiceHold,
   tickPendingChop,
-  updateHotGuide,
+  syncCutTimingUi,
   playCannedCut,
   renderCutBoard,
   renderLiveTomato,
@@ -42,7 +42,7 @@ import {
   setListening,
   syncKnifeEl,
   tryChopOnTak,
-} from './cutplay.js?v=94';
+} from './cutplay.js?v=96';
 import {
   bandLabel,
   createRoastHeat,
@@ -50,10 +50,12 @@ import {
   resetRoastHeat,
   roastAccuracy,
   roastTargetHint,
+  roastTimeLeft,
   roastToastStage,
+  ROAST_DURATION_SEC,
   stopRoastHeat,
   tickRoastHeat,
-} from './roastheat.js?v=54';
+} from './roastheat.js?v=60';
 import {
   createMixingSession,
   DEFAULT_SCRIPT,
@@ -81,7 +83,7 @@ import {
 } from './sprinklepourplay.js?v=53';
 import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=53';
 import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
-import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=21';
+import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=23';
 import { requestGuestReviews } from './dayreview.js?v=3';
 import { renderReceipt, renderReceiptLoading } from './receipt.js?v=2';
 
@@ -447,37 +449,6 @@ function applyBoilFireSprite(band, force = false) {
   fire.src = force ? `${base}&r=${Date.now()}` : base;
 }
 
-function syncFireTestButtons(activeBand) {
-  const wrap = $('#fireTestBtns');
-  if (!wrap) return;
-  const band = activeBand || roastHeat.band;
-  wrap.querySelectorAll('[data-fire-test]').forEach((btn) => {
-    btn.classList.toggle('is-on', btn.dataset.fireTest === band);
-  });
-}
-
-function forceFireBand(band) {
-  if (boilArmed) {
-    boilFireLock = band;
-    const level = band === 'high' ? 2 : band === 'mid' ? 1 : 0;
-    boilLevel = level;
-    boilProgress = level === 2 ? BOIL_NEED_SEC * 0.8 : level === 1 ? BOIL_NEED_SEC * 0.45 : BOIL_NEED_SEC * 0.1;
-    applyBoilFireSprite(band, true);
-    syncBoilFx();
-    syncFireTestButtons(band);
-    $('#micStatus').textContent = `테스트 고정 · ${bandLabel(band)}`;
-    return;
-  }
-  const heat = band === 'low' ? 18 : band === 'high' ? 85 : 50;
-  roastHeat.heat = heat;
-  roastHeat.band = band;
-  roastHeat.debugLock = true;
-  applyFireSprite(band, true);
-  syncHeatUi();
-  syncFireTestButtons(band);
-  $('#micStatus').textContent = `테스트 고정 · ${bandLabel(band)} (다시 플레이하려면 성공/실수로 넘어가기)`;
-}
-
 function syncHeatUi() {
   const cursor = $('#heatCursor');
   const target = $('#heatTarget');
@@ -494,27 +465,32 @@ function syncHeatUi() {
     target.style.width = `${w}%`;
   }
   if (matchFill) {
-    const pct = Math.min(100, (roastHeat.matchTime / Math.max(1, roastHeat.needMatch)) * 100);
+    const duration = Math.max(1, roastHeat.duration || roastHeat.needMatch || ROAST_DURATION_SEC);
+    const pct = Math.min(100, (roastHeat.elapsed / duration) * 100);
     matchFill.style.width = `${pct}%`;
   }
   if (targetLabel) {
+    const left = Math.max(0, Math.ceil(roastTimeLeft(roastHeat)));
     const warn = roastHeat.nextTargetBand
       ? `목표 ${bandLabel(roastHeat.targetBand)} · 곧 ${bandLabel(roastHeat.nextTargetBand)}`
       : `목표 ${bandLabel(roastHeat.targetBand)}`;
-    targetLabel.textContent = warn;
+    targetLabel.textContent = `${warn} · ${left}초`;
   }
-  if (nowLabel) nowLabel.textContent = `지금 ${bandLabel(roastHeat.band)}`;
+  if (nowLabel) {
+    const live = roastAccuracy(roastHeat);
+    nowLabel.textContent = `지금 ${bandLabel(roastHeat.band)} · 예상 ${live}점`;
+  }
   if (hint) {
-    const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
+    const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax
+      || roastHeat.band === roastHeat.targetBand;
     hint.textContent = inZone
-      ? '좋아요! 목표 구간 유지 중'
+      ? `좋아요! ${bandLabel(roastHeat.targetBand)} 맞춤 중`
       : roastHeat.heat < roastHeat.targetMin
-        ? '더 불어 불을 키우세요'
-        : '조금 쉬며 불을 낮추세요';
+        ? `더 불어 ${bandLabel(roastHeat.targetBand)}로`
+        : `숨 쉬며 ${bandLabel(roastHeat.targetBand)}로 낮추세요`;
   }
 
   applyFireSprite(roastHeat.band);
-  syncFireTestButtons(roastHeat.band);
 
   if (blowFx) {
     const on = Boolean(roastHeat.blowing);
@@ -638,8 +614,6 @@ function hideRoastStage() {
   $('.counter-scene')?.classList.remove('is-roasting');
   stopRoastHeat(roastHeat);
   roastArmed = false;
-  const testBtns = $('#fireTestBtns');
-  if (testBtns) testBtns.hidden = true;
 }
 
 function hideBoilStage() {
@@ -652,8 +626,6 @@ function hideBoilStage() {
   boilElapsed = 0;
   boilLevel = -1;
   boilFireLock = null;
-  const testBtns = $('#fireTestBtns');
-  if (testBtns && !roastArmed) testBtns.hidden = true;
 }
 
 function syncBoilFx() {
@@ -677,7 +649,6 @@ function syncBoilFx() {
   stage.classList.toggle('boil-med', level === 1);
   stage.classList.toggle('boil-hot', level === 2);
   applyBoilFireSprite(band);
-  syncFireTestButtons(band);
 
   // boilAsset이 있으면 레벨에 따라 이미지 업데이트
   const current = getCurrent(state);
@@ -1180,9 +1151,6 @@ function renderBoilStage(stepData) {
 
   boilArmed = true;
   boilFireLock = null;
-  const testBtns = $('#fireTestBtns');
-  if (testBtns) testBtns.hidden = false;
-  syncFireTestButtons('low');
   syncBoilFx();
   if (!animationId) {
     lastFrameTs = 0;
@@ -1320,8 +1288,6 @@ function renderRoastStage(stepData) {
   applyFireSprite('mid', true);
   syncHeatUi();
   roastArmed = true;
-  const testBtns = $('#fireTestBtns');
-  if (testBtns) testBtns.hidden = false;
   if (!animationId) {
     lastFrameTs = 0;
     animationId = requestAnimationFrame(tickLiveMic);
@@ -1348,12 +1314,8 @@ function renderRoastStage(stepData) {
   }
 
   $('#stationIcon').hidden = true;
-  $('#micStatus').textContent = ingredientId === 'baguette'
-    ? `마이크 켜고 「후우~」 · 단면→굽1→2→3 · ${n}조각`
-    : `마이크 켜고 「후우~」 · 점선=목표 화력 · ${n}조각`;
-  $('#stepHint').textContent = ingredientId === 'baguette'
-    ? '목표 화력에 맞추면 단면이 점점 구워집니다 · 굽3이 완성'
-    : '위 점선 구간에 불길을 맞추세요 · 중→약→강으로 목표가 바뀝니다';
+  $('#micStatus').textContent = `마이크 켜고 「후우~」 · ${ROAST_DURATION_SEC}초 동안 목표 화력 맞추기`;
+  $('#stepHint').textContent = `중→강→약 순으로 목표가 바뀝니다 · ${ROAST_DURATION_SEC}초 후 맞춤 점수로 종료`;
 }
 
 async function runCannedCut() {
@@ -1703,10 +1665,10 @@ function renderGame() {
     counterScene.classList.add('is-zoomed');
     peakArmed = true;
     const chartKo = (cutSession.requiredLabels || []).map((l) => CUT_LABEL_KO[l] || l).join(' · ');
-    $('#micStatus').textContent = `마이크 켜기 → 점선 리듬 ${chartKo}`;
+    $('#micStatus').textContent = `마이크 켜기 → 칼이 주황 선에 오면 「${CUT_LABEL_KO[cutSession.requiredLabels?.[0]] || '탁'}」`;
     $('#stepHint').textContent = beginnerMode
-      ? `초보 리듬 ${chartKo} · 2~3종 발음 (${cutN}컷)`
-      : `리듬 ${chartKo} · 가이드+발음 (슥=길게) (${cutN}컷)`;
+      ? `초보 · 다음 점선이 밝아지면 말하세요 · ${chartKo} (${cutN}컷)`
+      : `칼이 주황 선에 올 때 발음 · ${chartKo} (슥=길게) (${cutN}컷)`;
   } else if (isRoastingStep(current)) {
     hideFinishStage();
     peakArmed = false;
@@ -2038,11 +2000,6 @@ on($('#missBtn'), 'click', async () => {
   if (isFinishStep(getCurrent(state))) await playFinishTestEffect(20);
   commitStep(20);
 });
-on($('#fireTestBtns'), 'click', (event) => {
-  const btn = event.target.closest('[data-fire-test]');
-  if (!btn || (!roastArmed && !boilArmed)) return;
-  forceFireBand(btn.dataset.fireTest);
-});
 on($('#nextDayBtn'), 'click', () => {
   startNextDay(state);
   if (multiplayer.connected) multiplayer.nextDay({
@@ -2086,8 +2043,13 @@ function handleTmLabel({ label, score }) {
   }
 
   if (label === 'Huu') {
-    tmHuuUntil = now + 900;
-    tmBoostUntil = now + 900;
+    // 굽기: 침묵/잡음 Huu 오탐 차단 — 실제 마이크 에너지가 있을 때만
+    if (roastArmed && lastMicVolume < 12) {
+      console.log('[TM] skip quiet Huu', pct + '%', 'vol', lastMicVolume);
+      return false;
+    }
+    tmHuuUntil = now + 550;
+    tmBoostUntil = now + 550;
     var el3 = document.querySelector('#micStatus');
     if (el3) {
       if (roastArmed && isRoastingStep(current)) el3.textContent = 'VOICE Huu ' + pct + '% blow';
@@ -2123,8 +2085,8 @@ function handleTmDebug({ text, note }) {
 async function startTmMicAssist() {
   try {
     await startTmListen(handleTmLabel, {
-      probabilityThreshold: 0.32,
-      overlapFactor: 0.92,
+      probabilityThreshold: 0.26,
+      overlapFactor: 0.94,
       preferCutLabel: () => (peakArmed && cutSession ? nextRequiredLabel(cutSession) : null),
       onDebug: handleTmDebug,
     });
@@ -2143,7 +2105,7 @@ function applyTakHit(sourceLabel, { label = 'Tak' } = {}) {
   if (now < cutVoiceArmedAt) return;
   if (now < cutHitGateUntil) return;
   if (now < (cutSession.cutLockedUntil || 0)) return;
-  cutHitGateUntil = now + 220;
+  cutHitGateUntil = now + 100;
 
   const result = tryChopOnTak(cutSession, {
     knifeEl: $('#knifeHand'),
@@ -2153,10 +2115,10 @@ function applyTakHit(sourceLabel, { label = 'Tak' } = {}) {
 
   if (result === 'complete' || JUDGE_KO[result]) {
     lastSpeechTakAt = now;
-    cutHitGateUntil = now + 220;
-    cutDebugMuteUntil = now + 700;
+    cutHitGateUntil = now + 100;
+    cutDebugMuteUntil = now + 500;
   } else {
-    cutHitGateUntil = now + 40;
+    cutHitGateUntil = now + 30;
   }
 
   const n = cutSession.actualCuts.length;
@@ -2314,6 +2276,19 @@ function volumePercentFromAnalyser(freq) {
   return Math.min(100, Math.floor(Math.max(avg, pk * 0.9)));
 }
 
+/** 굽기용: RMS + 약한 주파수 보조 — 후우는 잘 잡히고, 침묵은 낮게 */
+function blowEnergyFromWave(wave) {
+  if (!wave?.length) return 0;
+  let sum = 0;
+  for (let i = 0; i < wave.length; i++) {
+    const v = (wave[i] - 128) / 128;
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / wave.length);
+  const cleaned = Math.max(0, rms - 0.02);
+  return Math.min(100, Math.floor(cleaned * 380));
+}
+
 function tickLiveMic(ts) {
   const ovenStageEl = $('#ovenStage');
   const ovenStageVisible = ovenStageEl && !ovenStageEl.hidden;
@@ -2402,20 +2377,26 @@ function tickLiveMic(ts) {
   }
 
   if (roastArmed && isRoastingStep(current)) {
-    const tmBlow = performance.now() < tmHuuUntil;
-    const blowVol = micOn ? Math.max(volumePercent, tmBlow ? 72 : 0) : 0;
+    // RMS 위주 + 주파수 보조. 입 다물면 낮아져서 식음
+    const waveBlow = wave ? blowEnergyFromWave(wave) : 0;
+    const roastVol = Math.max(waveBlow, Math.floor(volumePercent * 0.45));
+    const tmBlow = performance.now() < tmHuuUntil && roastVol >= 16;
+    const blowVol = micOn
+      ? Math.min(100, roastVol + (tmBlow ? 28 : 0))
+      : 0;
     tickRoastHeat(roastHeat, blowVol, dt);
     syncHeatUi();
     const ingId = primaryIngredient(current);
     syncRoastToastVisuals(ingId);
     if (micOn) {
-      const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax;
+      const inZone = roastHeat.heat >= roastHeat.targetMin && roastHeat.heat <= roastHeat.targetMax
+        || roastHeat.band === roastHeat.targetBand;
       const toastBit = ingId === 'baguette' ? ` · ${toastStatusLabel(Math.max(lastToastLevel, roastToastLevel(roastHeat)))}` : '';
-      const hint = roastTargetHint(roastHeat);
-      const nextBit = roastHeat.nextTargetBand ? ` · ${hint}` : '';
+      const left = Math.max(0, Math.ceil(roastTimeLeft(roastHeat)));
+      const live = roastAccuracy(roastHeat);
       $('#micStatus').textContent = roastHeat.blowing
-        ? `후우~ · ${bandLabel(roastHeat.band)} → 목표 ${bandLabel(roastHeat.targetBand)}${inZone ? ' ✓' : ''}${toastBit}${nextBit}`
-        : `입 닫으면 식어요 · 목표 ${bandLabel(roastHeat.targetBand)}${toastBit}${nextBit}`;
+        ? `후우~ · ${bandLabel(roastHeat.band)}→${bandLabel(roastHeat.targetBand)}${inZone ? ' ✓' : ''} · ${left}초 · ${live}점${toastBit}`
+        : `식히는 중 · 목표 ${bandLabel(roastHeat.targetBand)} · ${left}초 · ${live}점${toastBit}`;
     }
     if (roastHeat.done) {
       if (ingId === 'baguette') {
@@ -2426,9 +2407,7 @@ function tickLiveMic(ts) {
       const score = roastAccuracy(roastHeat);
       hideRoastStage();
       stopLiveMic();
-      $('#micStatus').textContent = ingId === 'baguette'
-        ? `바게트 굽3 완성 · ${score}점`
-        : `굽기 완료 · ${score}점`;
+      $('#micStatus').textContent = `굽기 완료 · 목표 맞춤 ${score}점`;
       commitStep(score);
       return;
     }
@@ -2535,13 +2514,16 @@ function tickLiveMic(ts) {
         : `${JUDGE_KO[pendingResult]} · ${n}/${total}`;
     }
 
-    const hot = updateHotGuide(cutSession);
-    const guides = board?.querySelectorAll('.cut-guide');
-    if (guides?.length) {
-      guides.forEach((el, i) => {
-        el.classList.toggle('done', cutSession.cutDone[i]);
-        el.classList.toggle('hot', i === hot);
-      });
+    const hot = syncCutTimingUi(cutSession, board);
+    if (hot >= 0 && performance.now() >= cutVoiceArmedAt) {
+      const need = nextRequiredLabel(cutSession);
+      const ko = need ? (CUT_LABEL_KO[need] || need) : '탁';
+      const hold = need === 'Ssuk' ? '~' : '';
+      const status = $('#micStatus')?.textContent || '';
+      // 판정/TM 문구가 잠깐 떠 있지 않을 때만 “지금!” 안내
+      if (!/PERFECT|GOOD|EARLY|LATE|VOICE|HIT|빗나|점수/.test(status)) {
+        $('#micStatus').textContent = `지금 「${ko}${hold}」!`;
+      }
     }
 
     /* 썰기: 음성인식(TM) 주력 — 파열음 OFF (2연타·오인 방지) */
@@ -2637,13 +2619,13 @@ $('#micBtn').addEventListener('click', async () => {
     lastSpeechTakAt = 0;
     cutHitGateUntil = 0;
     /* 클릭음만 짧게 무시 — 음성은 바로 */
-    cutVoiceArmedAt = peakArmed ? performance.now() + 280 : 0;
+    cutVoiceArmedAt = peakArmed ? performance.now() + 120 : 0;
     if (peakArmed) cutHitGateUntil = cutVoiceArmedAt;
     $('#micBtn').textContent = '마이크 끄기';
 
     if (peakArmed) {
       setListening(cutSession, true);
-      $('#micStatus').textContent = '준비 중… 클릭음 지나간 뒤 말하세요';
+      $('#micStatus').textContent = '바로 「탁」! 칼이 주황 선에 오면 말하세요';
     } else if (roastArmed) {
       stopTakSpeech();
       $('#micStatus').textContent = '「후우~」 불어 강불 · 멈추면 약불';

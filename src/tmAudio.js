@@ -16,8 +16,8 @@ const MODEL_URL = new URL('./tm-audio/', import.meta.url).href;
 const BG = '배경 소음';
 const CUT_LABELS = ['Tak', 'Ssuk', 'Ssak', 'Chap'];
 const CUT_SET = new Set(CUT_LABELS);
-const CUT_COOLDOWN_MS = 450;
-const OTHER_COOLDOWN_MS = { Huu: 350, Ting: 400 };
+const CUT_COOLDOWN_MS = 260;
+const OTHER_COOLDOWN_MS = { Huu: 280, Ting: 350 };
 const TARGET_SAMPLE_RATE = 44100;
 
 let recognizer = null;
@@ -179,13 +179,13 @@ export async function startTmListen(handler, opts) {
         const now = performance.now();
         const { first, second } = topTwoCuts(map, prefer);
         const margin = first.score - second.score;
-        const vsBg = first.score >= bgScore - 0.05;
+        const vsBg = first.score >= bgScore - 0.08;
         // 한 프레임만 튀는 경우가 많아서, 마진이 크면 즉시 HIT
         const strong = vsBg && (
-          (first.score >= 0.40 && margin >= 0.10)
-          || (first.score >= 0.35 && margin >= 0.18)
+          (first.score >= 0.32 && margin >= 0.06)
+          || (first.score >= 0.28 && margin >= 0.12)
         );
-        const ok = first.score >= cutThreshold && margin >= 0.08 && vsBg;
+        const ok = first.score >= cutThreshold && margin >= 0.05 && vsBg;
 
         const fireCut = (label, score) => {
           if (now - (lastFire._cut || 0) < CUT_COOLDOWN_MS) {
@@ -219,7 +219,7 @@ export async function startTmListen(handler, opts) {
 
         if (!ok) {
           // 직전 후보가 있으면 한 프레임 정도는 낮은 점수로도 확정 허용
-          if (pendingLabel && (map[pendingLabel] || 0) >= 0.28 && now - (lastFire._pendAt || 0) < 220) {
+          if (pendingLabel && (map[pendingLabel] || 0) >= 0.22 && now - (lastFire._pendAt || 0) < 260) {
             fireCut(pendingLabel, map[pendingLabel] || first.score);
             return;
           }
@@ -236,9 +236,10 @@ export async function startTmListen(handler, opts) {
           emitDebug(
             map,
             bgScore,
-            pendingCount < 2 ? ('후보 ' + first.label + Math.round(first.score * 100)) : null,
+            pendingCount < 1 ? ('후보 ' + first.label + Math.round(first.score * 100)) : null,
           );
-          if (pendingCount >= 2) {
+          // 1프레임 후보만으로도 HIT (반응 빠르게)
+          if (pendingCount >= 1) {
             fireCut(first.label, first.score);
             return;
           }
@@ -254,7 +255,7 @@ export async function startTmListen(handler, opts) {
             topLabel = labels[i];
           }
         }
-        if (!isBackgroundLabel(topLabel) && !CUT_SET.has(topLabel) && topScore >= 0.45 && topScore >= bgScore + 0.08) {
+        if (!isBackgroundLabel(topLabel) && !CUT_SET.has(topLabel) && topScore >= 0.48 && topScore >= bgScore + 0.08) {
           const cd = OTHER_COOLDOWN_MS[topLabel] || 350;
           if (now - (lastFire[topLabel] || 0) >= cd && now - (lastFire._any || 0) >= 120) {
             const accepted = onLabel({ label: topLabel, score: topScore, index: labels.indexOf(topLabel) });
