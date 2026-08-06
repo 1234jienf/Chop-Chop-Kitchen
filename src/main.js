@@ -179,6 +179,8 @@ let boilArmed = false;
 let ovenArmed = false;
 /** 스테이션 클로즈업에 들어가 있는지 (맵 ↔ 1인칭) */
 let inStation = false;
+/** 멀티 게임의 첫 스냅샷과 단계 전환을 구분하기 위한 플래그 */
+let sharedGameInitialized = false;
 let ovenStartTimer = null;
 let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
 let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
@@ -1792,6 +1794,7 @@ function renderGame() {
 function applySharedSnapshot(snapshot) {
   const game = snapshot.game;
   const previousStepIndex = state.currentStep;
+  const isFirstSharedSnapshot = !sharedGameInitialized;
   const previousStep = getSteps(state)[previousStepIndex];
   const shared = game.sharedState || {};
   if (shared.day != null) state.day = shared.day;
@@ -1805,21 +1808,26 @@ function applySharedSnapshot(snapshot) {
   state.results = game.results.map((accuracy, index) => ({ ...getSteps(state)[index], accuracy }));
   state.ingredientCuts = { ...game.ingredientCuts };
   state.finished = state.currentStep >= getSteps(state).length;
+  sharedGameInitialized = true;
+  const stepChanged = state.currentStep !== previousStepIndex;
   const completedCourse = state.currentStep === previousStepIndex + 1
     ? completedCourseAt(getSteps(state), previousStepIndex)
     : null;
-  if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
+  if (stepChanged) boardHandoffToken += 1;
   if (state.finished) {
     inStation = false;
     renderResult();
     showScreen('result');
-  } else if (multiplayer.connected) {
-    // 멀티는 관전 동기화를 위해 클로즈업 유지
-    inStation = true;
+  } else if (isFirstSharedSnapshot || stepChanged) {
+    // 멀티에서도 게임 시작과 다음 단계 전환은 탑다운 맵에서 시작한다.
+    openKitchenMap();
+  } else if (inStation) {
+    // 같은 단계의 재동기화는 현재 보고 있는 조리/관전 화면을 유지한다.
     renderGame();
     showScreen('game');
   } else {
-    openKitchenMap();
+    renderKitchenMap();
+    showScreen('kitchen-map');
   }
   if (completedCourse) {
     courseCompleteView.show(completedCourse, {
@@ -1827,9 +1835,7 @@ function applySharedSnapshot(snapshot) {
       nextCourse: getCurrent(state)?.course,
       onContinue: state.finished
         ? null
-        : () => {
-          if (!multiplayer.connected) openKitchenMap();
-        },
+        : () => openKitchenMap(),
     });
   }
   const currentStep = getCurrent(state);
