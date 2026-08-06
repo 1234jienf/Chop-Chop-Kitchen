@@ -79,7 +79,7 @@ import {
   stopFinishSession,
   tickFinish,
 } from './sprinklepourplay.js?v=53';
-import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=52';
+import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=53';
 import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
 import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=21';
 import { requestGuestReviews } from './dayreview.js?v=3';
@@ -1431,7 +1431,7 @@ function renderKitchenMap() {
     btn.classList.toggle('is-next', isNext);
     btn.classList.toggle('is-done', isDone);
     btn.classList.toggle('is-locked', !isNext);
-    btn.disabled = !isNext;
+    btn.disabled = !isNext || (multiplayer.connected && !multiplayer.isMyTurn);
     btn.setAttribute('aria-current', isNext ? 'step' : 'false');
   });
 
@@ -1481,6 +1481,7 @@ function finishPlayerDrag() {
   if (multiplayer.connected && setupPlayerIds.length === 3) {
     multiplayer.setOrder([...setupPlayerIds], {
       day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+      menu: state.menu,
     });
     $('#multiStatus').textContent = '변경한 릴레이 순서를 모두에게 반영했습니다. 다시 준비해 주세요.';
   }
@@ -1801,6 +1802,7 @@ function applySharedSnapshot(snapshot) {
   if (shared.money != null) state.money = shared.money;
   if (shared.grade) state.grade = shared.grade;
   if (shared.guest) state.guest = shared.guest;
+  if (shared.menu?.courses) state.menu = shared.menu;
   const playersById = new Map(snapshot.players.map((p) => [p.id, p.name]));
   setupPlayerIds = [...game.order];
   state.players = game.order.map((id) => playersById.get(id));
@@ -1818,6 +1820,10 @@ function applySharedSnapshot(snapshot) {
     inStation = false;
     renderResult();
     showScreen('result');
+  } else if (game.stationOpen) {
+    inStation = true;
+    renderGame();
+    showScreen('game');
   } else if (isFirstSharedSnapshot || stepChanged) {
     // 멀티에서도 게임 시작과 다음 단계 전환은 탑다운 맵에서 시작한다.
     openKitchenMap();
@@ -1909,7 +1915,11 @@ document.addEventListener('click', (event) => {
   const stationBtn = event.target.closest('.map-station.is-next');
   if (stationBtn) {
     event.preventDefault();
-    enterCurrentStation();
+    if (multiplayer.connected) {
+      if (multiplayer.isMyTurn) multiplayer.enterStation();
+    } else {
+      enterCurrentStation();
+    }
   }
 });
 
@@ -1955,6 +1965,7 @@ on($('#confirmTeamBtn'), 'click', () => {
       }
       multiplayer.setReady(true, {
         day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+        menu: state.menu,
       });
       $('#multiStatus').textContent = '준비 완료! 다른 셰프를 기다리는 중…';
       return;
@@ -1995,6 +2006,7 @@ on($('#nextDayBtn'), 'click', () => {
   startNextDay(state);
   if (multiplayer.connected) multiplayer.nextDay({
     day: state.day, money: state.money, grade: state.grade, guest: state.guest,
+    menu: state.menu,
   });
   showScreen('restaurant');
 });

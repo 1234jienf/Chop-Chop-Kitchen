@@ -47,6 +47,7 @@ class Room:
     ingredient_cuts: Dict[str, int] = field(default_factory=dict)
     started: bool = False
     shared_state: dict = field(default_factory=dict)
+    station_open: bool = False
 
 
 rooms: Dict[str, Room] = {}
@@ -73,6 +74,7 @@ def snapshot(room: Room):
             "results": room.results,
             "ingredientCuts": room.ingredient_cuts,
             "sharedState": room.shared_state,
+            "stationOpen": room.station_open,
         },
     }
 
@@ -158,6 +160,12 @@ async def multiplayer_socket(ws: WebSocket):
                 room.results.append(max(20, min(100, int(message.get("accuracy", 0)))))
                 room.current_step += 1
                 room.ingredient_cuts.update(message.get("ingredientCuts") or {})
+                room.station_open = False
+            elif kind == "enter_station":
+                if not room.started or room.order[room.current_step % 3] != player.id:
+                    await error(ws, "현재 차례인 플레이어만 조리 스테이션에 들어갈 수 있습니다.")
+                    continue
+                room.station_open = True
             elif kind == "activity":
                 if room.started and room.order[room.current_step % 3] == player.id:
                     activity = message.get("activity")
@@ -168,6 +176,7 @@ async def multiplayer_socket(ws: WebSocket):
                 room.current_step = 0
                 room.results = []
                 room.ingredient_cuts = {}
+                room.station_open = False
                 if isinstance(message.get("sharedState"), dict):
                     room.shared_state = message["sharedState"]
             await broadcast(room)

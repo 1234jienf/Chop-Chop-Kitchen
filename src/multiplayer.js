@@ -89,6 +89,7 @@ export class KitchenMultiplayer {
   setOrder(order, sharedState) { return this.send('set_order', { order, sharedState }); }
   setReady(ready = true, sharedState) { return this.send('ready', { ready, sharedState }); }
   submitStep(accuracy, ingredientCuts = {}) { return this.send('step', { accuracy, ingredientCuts }); }
+  enterStation() { return this.send('enter_station'); }
   sendActivity(activity) { return this.send('activity', { activity }); }
   nextDay(sharedState) { return this.send('next_day', { sharedState }); }
   disconnect() { this.socket?.close(); this.socket = null; }
