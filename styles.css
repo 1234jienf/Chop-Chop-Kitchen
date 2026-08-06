@@ -324,7 +324,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   100%{transform:scale(1)}
 }
 
-/* 칼: 재료보다 아래쪽, 「탁」에 내려치기 */
+/* Į: ��Ẹ�� �Ʒ���, ��Ź���� ����ġ�� */
 .knife-hand.knife-hand--on-tomato{
   position:absolute!important;
   left:var(--knife-t,0%)!important;
@@ -352,7 +352,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   100%{transform:translateX(-50%) rotate(-18deg) translateY(0)}
 }
 
-/* 「탁」 임팩트 이펙트 */
+/* ��Ź�� ����Ʈ ����Ʈ */
 .chop-fx{
   position:absolute;
   top:48%;
@@ -437,7 +437,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   text-shadow:0 1px 2px #000a;
 }
 
-/* 리듬 판정 팝업 */
+/* ���� ���� �˾� */
 .cut-judge{
   position:absolute;
   top:8%;
@@ -527,7 +527,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 /* Roast: align pan BOWL (not image center) with burner + fire */
 .roast-stage{
   --bowl-x: 50%;
-  --pan-shift: -14.5%; /* PNG 손잡이 때문에 팬 본체 ~64%에 있음 → 중앙으로 */
+  --pan-shift: -14.5%; /* PNG ������ ������ �� ��ü ~64%�� ���� �� �߾����� */
   position:absolute;
   z-index:4;
   left:50%;
@@ -748,7 +748,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
 /* legacy side gauge hidden in favor of rhythm strip */
 .heat-gauge{display:none!important}
 
-/* 1인칭 바람(숨) 이펙트 — 화면 아래에서 스토브로 */
+/* 1��Ī �ٶ�(��) ����Ʈ ? ȭ�� �Ʒ����� ������ */
 .blow-fx{
   position:absolute;
   inset:0;
@@ -854,54 +854,45 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   position:absolute;
   z-index:4;
   left:50%;
-  /* moved up by 10% as requested (screen basis) */
-  top:40%;
-  /* base width (used to compute explicit width/height) */
-  --oven-base-width: min(90%, 684px);
-  /* increase by 20% over previous 400% / 180% -> now 480% / 216% */
-  --oven-scale-x: 4.8; /* width multiplier (480%) */
-  --oven-scale-y: 2.16; /* height multiplier (216%) */
-  /* set explicit width/height so children are not distorted by transform scale */
+  top:46%;
+  /* 오븐 내부 기준 박스(재료 배치 기준). 필요 시 이 값들만 조절하세요. */
+  --oven-base-width: min(84%, 640px);
+  --oven-scale-x: 1.6;
+  --oven-scale-y: 1.7;
   width: calc(var(--oven-base-width) * var(--oven-scale-x));
   height: calc(var(--oven-base-width) * var(--oven-scale-y));
   transform: translate(-50%,-50%);
   pointer-events:none;
-  overflow:hidden; /* 오븐 안쪽만 보이도록 자르기 */
+  overflow:hidden;
 }
 .oven-stage[hidden]{display:none!important}
 .oven-contents{
   position:absolute;
   left:50%;
-  /* position anchored to bottom of glass so food sits on the oven floor */
-  bottom:8%;
-  transform:translateX(-50%);
-  /* glass 기준으로 크기 조정 */
-  width:30%;
+  /* 재료 위치/크기 커스텀 포인트 */
+  top:72%;
+  transform:translate(-50%,-50%);
+  width:42%;
   display:flex;
   flex-wrap:wrap;
   justify-content:center;
   align-items:flex-end;
-  gap:6px;
-  z-index:3; /* behind oven light */
+  gap:8px;
+  z-index:3;
 }
 .oven-contents::before{
   /* removed yellow/bright sparkle per request */
   display:none;
 }
 .oven-contents::after{
-  content:'';
-  position:absolute;
-  inset:0;
-  background:rgba(0,0,0,0.35);
-  z-index:2;
-  pointer-events:none;
-  border-radius:24px;
+  display:none;
 }
 .oven-item{
   display:inline-block;
   position:relative;
   width:100%;
-  max-width:220px;
+  max-width:190px;
+  --oven-item-scale: 1.5;
 }
 .oven-item img.oven-ingredient{
   width:100%;
@@ -909,13 +900,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   display:block;
 }
 .oven-item::after{
-  content:'';
-  position:absolute;
-  left:0; right:0; top:0; bottom:0;
-  background:rgba(0,0,0,0.3); /* 30% 검은색 가림막 */
-  z-index:4;
-  pointer-events:none;
-  border-radius:8px;
+  display:none;
 }
 .oven-light{
   position:absolute;
@@ -1069,7 +1054,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   background-position:center;
 }
 .oven-dial-wrap{
-  position:fixed; /* screen 기준 위치 */
+  position:fixed; /* screen ���� ��ġ */
   right:20%;
   bottom:15%;
   width:130px;
@@ -1083,8 +1068,8 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   bottom:50%;
   width:4px;
   height:48%;
-  transform-origin:50% 100%; /* 바늘의 회전 축: 아래쪽 중심 */
-  background:#e63b3b; /* 빨간색 침 */
+  transform-origin:50% 100%; /* �ٴ��� ȸ�� ��: �Ʒ��� �߽� */
+  background:#e63b3b; /* ������ ħ */
   border-radius:2px;
   z-index:7;
   transition:transform .06s linear;
@@ -1108,7 +1093,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   transform-origin:center 62%;
 }
 
-/* 오븐 타겟 마커 */
+/* ���� Ÿ�� ��Ŀ */
 #ovenDial .oven-target{
   position:absolute;
   left:50%;
@@ -1119,12 +1104,12 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   display:none !important;
 }
 
-/* Boil: pot on burner — 불은 버너(냄비 아래)에, 화면 하단으로 빠지지 않게 */.boil-stage{
+/* Boil: pot on burner ? ���� ����(���� �Ʒ�)��, ȭ�� �ϴ����� ������ �ʰ� */.boil-stage{
   --bowl-x: 50%;
   position:absolute;
   z-index:4;
-  left:50%;
-  top:56%;
+  left:49%;
+  top:53%;
   transform:translate(-50%,-50%);
   width:min(58%,420px);
   aspect-ratio:1.15;
@@ -1132,7 +1117,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   overflow:hidden;
 }
 .boil-stage[hidden]{display:none!important}
-/* 굽기 불과 비슷한 높이(버너) · 냄비 바닥 밑 */
+/* ���� �Ұ� ����� ����(����) �� ���� �ٴ� �� */
 .boil-stage .fire-img{
   left:50%;
   bottom:18%;
@@ -1181,7 +1166,7 @@ body:has(.game-screen.active){overflow:hidden;height:100%}
   0%,100%{transform:translate(-50%,-50%) rotate(var(--rot,0deg)) translateY(0)}
   50%{transform:translate(-50%,-50%) rotate(var(--rot,0deg)) translateY(-4px)}
 }
-/* 보글 이펙트 — 냄비_물 고정, CSS로 기포/김 */
+/* ���� ����Ʈ ? ����_�� ����, CSS�� ����/�� */
 .boil-fx{
   position:absolute;
   left:50%;
@@ -1425,7 +1410,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   transform-origin:center 55%;
 }
 
-/* Separate 도마 + ingredient stack */
+/* Separate ���� + ingredient stack */
 .cut-stack{
   position:absolute;
   z-index:4;
@@ -1471,7 +1456,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   100%{transform:translate(-50%,-50%) rotate(0deg); opacity:1}
 }
 
-/* 도마 위 — 정자세(세운 손), 왼→오로 도마와 함께 이동 */
+/* ���� �� ? ���ڼ�(���� ��), �ޡ���� ������ �Բ� �̵� */
 .cut-stack .pass-hand{
   position:absolute;
   z-index:8;
@@ -1747,7 +1732,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   100%{ transform:translateX(-50%) scale(1); }
 }
 
-/* 발음별 칼 방향 */
+/* ������ Į ���� */
 .knife-hand.knife-hand--on-tomato.chopping-tak{animation:knifeChopTomato .22s cubic-bezier(.2,.8,.2,1)}
 .knife-hand.knife-hand--on-tomato.chopping-ssuk{animation:knifeSliceSsuk .42s ease-in-out}
 .knife-hand.knife-hand--on-tomato.chopping-ssak{animation:knifeScrapeSsak .28s ease-out}
@@ -1769,12 +1754,12 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   50%{transform:translateX(-50%) rotate(-38deg) translateY(20px)}
 }
 
-/* 발음별 이펙트 */
+/* ������ ����Ʈ */
 .chop-fx-ssuk:before{width:78px;height:4px;margin-top:0;background:linear-gradient(90deg,transparent,#fff8e0,#ffb060,transparent);box-shadow:0 0 12px #ffd080cc}
 .chop-fx-ssak:before{transform:translate(-50%,-50%) rotate(-35deg)}
 .chop-fx-chap:after{width:36px;height:36px}
 
-/* 가이드: 슥=가로선 */
+/* ���̵�: ��=���μ� */
 .guide-ssuk{border-left-style:solid!important;border-left-color:rgba(120,200,255,.5)!important}
 .guide-ssuk:after{
   content:"";position:absolute;left:50%;top:50%;width:36px;height:0;
@@ -1783,7 +1768,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 .guide-ssak{border-left-color:rgba(255,180,120,.55)!important}
 .guide-chap .cut-guide-syl{letter-spacing:-0.08em}
 
-/* 슥 홀드 링 */
+/* �� Ȧ�� �� */
 .cut-hold-ring{
   position:absolute;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
   border-radius:50%;pointer-events:none;
@@ -1794,7 +1779,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 }
 .cut-guide.is-holding .cut-hold-ring{opacity:.95}
 
-/* 발음별 단면/조각 */
+/* ������ �ܸ�/���� */
 .burst-clip{position:relative;overflow:visible}
 .slice-edge{
   position:absolute;top:0;bottom:0;width:6px;left:-3px;z-index:2;
@@ -1818,7 +1803,7 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
 .knife-hand.knife-hand--on-tomato[data-cut-mode="Ssak"]{transform:translateX(-50%) rotate(-28deg)}
 .knife-hand.knife-hand--on-tomato[data-cut-mode="Chap"]{transform:translateX(-50%) rotate(-24deg) scale(0.96)}
 
-/* 고정 도마 — 컷해도 가이드/재료 위치 안 튐 */
+/* ���� ���� ? ���ص� ���̵�/��� ��ġ �� Ʀ */
 .cut-arena--fixed{
   position:relative;
   margin:0 auto;
@@ -1853,3 +1838,169 @@ html,body,#app{font-family:"IBM Plex Sans KR",Lexend,sans-serif}
   pointer-events:none;
 }
 
+
+/* ── Top-down kitchen map hub ── */
+.kitchen-map-screen{
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:4vh 4vw 5vh;
+  color:var(--paper);
+  background:
+    radial-gradient(ellipse at 50% 20%,#5a3d2888 0,transparent 45%),
+    linear-gradient(165deg,#1a120e 0%,#2a1c14 48%,#17100c 100%);
+}
+.kitchen-map-shell{
+  width:min(720px,100%);
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+.kitchen-map-header{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+}
+.kitchen-map-header h2{
+  margin:0;
+  font-family:Georgia,serif;
+  font-size:clamp(1.8rem,4vw,2.8rem);
+  line-height:1;
+}
+.kitchen-map-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.kitchen-map-meta span{
+  padding:8px 12px;
+  border:1px solid #5a4333;
+  border-radius:8px;
+  background:#241910;
+  color:#d4c2ad;
+  font-size:.75rem;
+  font-weight:800;
+}
+.kitchen-map-mission{
+  margin:0;
+  padding:12px 16px;
+  border-left:3px solid var(--orange);
+  background:#241910cc;
+  color:#f0e2d0;
+  font-weight:700;
+  line-height:1.45;
+}
+.kitchen-map-hint{
+  margin:0;
+  text-align:center;
+  font-size:.78rem;
+  color:#a8927c;
+}
+.kitchen-floor{
+  position:relative;
+  width:100%;
+  aspect-ratio:1/1;
+  overflow:hidden;
+  border:2px solid #6a4e38;
+  border-radius:18px;
+  background:#1a120e;
+  box-shadow:
+    inset 0 0 0 1px #8a6a4e44,
+    0 24px 50px #0008;
+}
+.kitchen-floor.has-map-art{
+  transform:none;
+}
+.kitchen-map-art{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  pointer-events:none;
+  user-select:none;
+}
+.floor-grid,
+.floor-counter,
+.floor-island{display:none}
+.map-station{
+  position:absolute;
+  left:var(--x);
+  top:var(--y);
+  z-index:2;
+  width:auto;
+  min-width:0;
+  transform:translate(-50%,-50%);
+  padding:8px 10px 7px;
+  border:2px solid #fff8;
+  border-radius:12px;
+  background:#1a120ecc;
+  color:#f4e8d8;
+  cursor:default;
+  opacity:.38;
+  filter:grayscale(.4);
+  backdrop-filter:blur(2px);
+  transition:transform .18s ease,opacity .18s ease,border-color .18s ease,box-shadow .18s ease,filter .18s ease;
+}
+.map-station-icon{display:block;font-size:1.25rem;line-height:1;margin-bottom:2px}
+.map-station-name{display:block;font-weight:900;font-size:.78rem;white-space:nowrap}
+.map-station-tag{display:none}
+.map-station.is-done{
+  opacity:.7;
+  filter:none;
+  border-color:#7fa56a99;
+}
+.map-station.is-next{
+  opacity:1;
+  filter:none;
+  cursor:pointer;
+  border-color:var(--orange);
+  box-shadow:0 0 0 3px #ed762f66,0 10px 22px #0009;
+  animation:mapPulse 1.4s ease-in-out infinite;
+}
+.map-station.is-next:hover{
+  transform:translate(-50%,-58%) scale(1.06);
+  filter:brightness(1.08);
+}
+.map-station.is-locked{pointer-events:none}
+.map-chef{
+  position:absolute;
+  left:var(--x);
+  top:var(--y);
+  z-index:3;
+  transform:translate(-50%,-130%);
+  font-size:1.7rem;
+  filter:drop-shadow(0 6px 4px #000a);
+  animation:chefBob 1.1s ease-in-out infinite;
+  pointer-events:none;
+  transition:left .45s ease,top .45s ease;
+}
+.map-back-btn{
+  display:block;
+  margin-top:8px;
+  padding:0;
+  color:#d4b89a;
+  font-size:.72rem;
+  letter-spacing:.04em;
+}
+.map-back-btn:hover{color:var(--orange)}
+@keyframes mapPulse{
+  0%,100%{box-shadow:0 0 0 3px #ed762f55,0 10px 22px #0009}
+  50%{box-shadow:0 0 0 8px #ed762f22,0 12px 28px #000a}
+}
+@keyframes chefBob{
+  0%,100%{transform:translate(-50%,-130%)}
+  50%{transform:translate(-50%,-145%)}
+}
+@media (prefers-reduced-motion:reduce){
+  .map-station.is-next,.map-chef{animation:none}
+}
+@media (max-width:700px){
+  .kitchen-floor{aspect-ratio:1/1}
+  .map-station{padding:7px 8px}
+  .map-station-icon{font-size:1.1rem}
+  .map-station-name{font-size:.7rem}
+  .kitchen-map-header{flex-direction:column;align-items:flex-start}
+}

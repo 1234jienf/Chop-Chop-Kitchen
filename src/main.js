@@ -5,7 +5,7 @@ import {
   TYPE_LABEL,
   ingredientAsset,
   primaryIngredient,
-} from './data.js?v=58';
+} from './data.js?v=59';
 import {
   calculateResult,
   createGameState,
@@ -175,6 +175,8 @@ let roastArmed = false;
 let finishArmed = false;
 let boilArmed = false;
 let ovenArmed = false;
+/** 스테이션 클로즈업에 들어가 있는지 (맵 ↔ 1인칭) */
+let inStation = false;
 let ovenStartTimer = null;
 let ovenVisualDuration = 0; // n_a: 다이얼이 한 바퀴 도는 시각적 제한시간
 let ovenTargetTime = null; // n_b: 플레이어가 말해야 하는 목표 시점 (초)
@@ -670,6 +672,43 @@ function syncBoilFx() {
   stage.classList.toggle('boil-hot', level === 2);
   applyBoilFireSprite(band);
   syncFireTestButtons(band);
+
+  // boilAsset이 있으면 레벨에 따라 이미지 업데이트
+  const current = getCurrent(state);
+  if (current?.boilAsset) {
+    updateBoilPotImage(current.boilAsset, level);
+  }
+}
+
+/** boilAsset을 기반으로 현재 레벨에 맞는 냄비 이미지 업데이트 */
+function updateBoilPotImage(baseAsset, level) {
+  const pot = $('#potImg');
+  if (!pot) return;
+
+  // 기본 파일명에서 숫자 추출 (예: '클램 차우더_1.png' → '클램 차우더', 1)
+  const match = baseAsset.match(/^(.+?)_(\d+)\.png$/);
+  if (!match) {
+    // 숫자가 없으면 기본 파일 사용
+    pot.src = assetUrl(`./src/assets/끓이기/${baseAsset}`);
+    return;
+  }
+
+  const basename = match[1];
+  const targetNum = level + 1; // level 0→1, 1→2, 2→3
+
+  // 시도할 이미지 번호 (우선순위: targetNum → targetNum-1 → ... → 1)
+  let finalNum = targetNum;
+  for (let i = targetNum; i >= 1; i--) {
+    const candidate = `${basename}_${i}.png`;
+    // 현재는 존재 여부를 확인할 수 없으므로, 나중에 로드 실패 시 fallback 처리
+    // 일단 계산된 번호로 시도
+    finalNum = i;
+    break;
+  }
+
+  const filename = `${basename}_${finalNum}.png`;
+  pot.src = assetUrl(`./src/assets/끓이기/${filename}`);
+  pot.alt = filename;
 }
 
 function hideMixingStage() {
@@ -757,23 +796,11 @@ function renderOvenStage(stepData) {
   $('.counter-scene')?.classList.add('is-oven');
 
   // 오븐 내부에 재료 이미지를 표시 (오븐 전용 파일명 우선)
-  try {
-    // Use a screen-fixed container so ingredients are positioned relative to the viewport,
-    // not the transformed .oven-stage. Create it if missing.
-    let screenContents = $('#ovenContentsScreen');
-    if (!screenContents) {
-      screenContents = document.createElement('div');
-      screenContents.id = 'ovenContentsScreen';
-      screenContents.className = 'oven-contents-screen';
-      document.body.appendChild(screenContents);
-    }
-    // keep the original in-stage container empty to avoid duplicates
-    const inStage = $('#ovenContents');
-    if (inStage) inStage.innerHTML = '';
-
-    const files = stepData?.ovenFiles || [];
-    const ingIds = stepData?.ingredients || [];
-    screenContents.innerHTML = '';
+  const contents = $('#ovenContents');
+  const files = stepData?.ovenFiles || [];
+  const ingIds = stepData?.ingredients || [];
+  if (contents) {
+    contents.innerHTML = '';
     files.forEach((fileName, idx) => {
       const img = document.createElement('img');
       img.className = 'oven-ingredient';
@@ -798,16 +825,15 @@ function renderOvenStage(stepData) {
       item.className = 'oven-item';
       item.style.position = 'relative';
       item.style.display = 'inline-block';
-      item.style.zIndex = '30'; // above many scene elements when screen-fixed
-      const horiz = (idx - (files.length-1)/2) * 8;
-      // size the ingredient to 0.9 scale as requested
-      const scaleVal = 0.9;
-      item.style.transform = `translateX(${horiz}%) scale(${scaleVal})`;
+      item.style.zIndex = '30';
+      const horiz = (idx - (files.length - 1) / 2) * 8;
+      item.style.setProperty('--oven-item-x', `${horiz}%`);
+      item.style.transform = 'translateX(var(--oven-item-x)) scale(var(--oven-item-scale, 0.9))';
       item.style.transformOrigin = '50% 100%';
       item.appendChild(img);
-      screenContents.appendChild(item);
+      contents.appendChild(item);
     });
-  } catch (e) { console.error('oven render error', e); }
+  }
 
   // 레시피별 제한시간을 사용하고, 없으면 기본 25초로 작동
   ovenVisualDuration = (typeof stepData?.ovenVisualDuration === 'number')
@@ -1063,8 +1089,15 @@ function renderBoilStage(stepData) {
   boilProgress = 0;
   boilElapsed = 0;
   boilLevel = 0;
-  pot.src = assetUrl('./src/assets/도구/냄비_물.png');
-  pot.alt = '물 든 냄비';
+
+  // boilAsset이 있으면 해당 이미지 사용, 없으면 기본 냄비_물 사용
+  if (stepData?.boilAsset) {
+    pot.src = assetUrl(`./src/assets/끓이기/${stepData.boilAsset}`);
+    pot.alt = stepData.boilAsset;
+  } else {
+    pot.src = assetUrl('./src/assets/도구/냄비_물.png');
+    pot.alt = '물 든 냄비';
+  }
 
   if (fire) {
     fire.src = fireSrcFor('low', ASSET_VER);
@@ -1311,9 +1344,99 @@ function renderRestaurantExterior() {
 
 function showScreen(name) {
   if (name === 'restaurant') renderRestaurantExterior();
+  if (name === 'kitchen-map') renderKitchenMap();
   document.querySelectorAll('.screen').forEach(screen => screen.classList.toggle('active', screen.dataset.screen === name));
   window.scrollTo(0, 0);
   if (name === 'game') scheduleFitGameStage();
+}
+
+const MAP_STATION_POS = {
+  boil: { x: '35%', y: '55%' },
+  grill: { x: '52%', y: '55%' },
+  cut: { x: '48%', y: '70%' },
+  mix: { x: '70%', y: '60%' },
+  finish: { x: '48%', y: '87%' },
+};
+
+function mapStationIdForStep(step) {
+  if (!step) return null;
+  switch (step.action) {
+    case 'cutting': return 'cut';
+    case 'boiling': return 'boil';
+    case 'roasting':
+    case 'oven': return 'grill';
+    case 'mixing': return 'mix';
+    case 'putting':
+    case 'sprinkling': return 'finish';
+    default: return 'cut';
+  }
+}
+
+function openKitchenMap() {
+  inStation = false;
+  peakArmed = false;
+  roastArmed = false;
+  finishArmed = false;
+  boilArmed = false;
+  ovenArmed = false;
+  mixingArmed = false;
+  try { stopLiveMic(); } catch (_) {}
+  try { stopOvenSpeech(); } catch (_) {}
+  try { hideOvenStage(); } catch (_) {}
+  try { hideMixingStage(); } catch (_) {}
+  try { hideRoastStage(); } catch (_) {}
+  try { hideBoilStage(); } catch (_) {}
+  try { hideFinishStage(); } catch (_) {}
+  showScreen('kitchen-map');
+}
+
+function enterCurrentStation() {
+  const current = getCurrent(state);
+  if (!current || state.finished) return;
+  inStation = true;
+  renderGame();
+  showScreen('game');
+}
+
+function renderKitchenMap() {
+  const steps = getSteps(state);
+  const current = getCurrent(state);
+  const nextId = mapStationIdForStep(current);
+  const doneIds = new Set(
+    steps.slice(0, state.currentStep).map(mapStationIdForStep).filter(Boolean),
+  );
+
+  const dayEl = $('#mapDayLabel');
+  const stepEl = $('#mapStepLabel');
+  const mission = $('#mapMission');
+  if (dayEl) dayEl.textContent = `DAY ${state.day}`;
+  if (stepEl) stepEl.textContent = `${state.currentStep + 1} / ${steps.length}`;
+  if (mission) {
+    if (!current) {
+      mission.textContent = '오늘 영업이 끝났어요';
+    } else {
+      const stationName = ACTION_LABEL[current.action] || stationLabel(current);
+      mission.textContent = `${getPlayer(state)}의 차례 · ${current.course.name} — ${current.title} (${stationName}) 스테이션을 누르세요`;
+    }
+  }
+
+  document.querySelectorAll('.map-station').forEach((btn) => {
+    const id = btn.dataset.station;
+    const isNext = id === nextId;
+    const isDone = doneIds.has(id) && !isNext;
+    btn.classList.toggle('is-next', isNext);
+    btn.classList.toggle('is-done', isDone);
+    btn.classList.toggle('is-locked', !isNext);
+    btn.disabled = !isNext;
+    btn.setAttribute('aria-current', isNext ? 'step' : 'false');
+  });
+
+  const chef = $('#mapChef');
+  const pos = MAP_STATION_POS[nextId] || { x: '48%', y: '48%' };
+  if (chef) {
+    chef.style.setProperty('--x', pos.x);
+    chef.style.setProperty('--y', pos.y);
+  }
 }
 
 function renderPlayers() {
@@ -1555,7 +1678,6 @@ function renderGame() {
     counterScene.classList.remove('is-zoomed');
     setListening(cutSession, false);
     renderRoastStage(current);
-    $('#stepHint').textContent = `목표 소리 “${current.targetPattern}” · ${current.hint}`;
   } else if (isOvenStep(current)) {
     peakArmed = false;
     hideBoilStage();
@@ -1685,18 +1807,34 @@ function applySharedSnapshot(snapshot) {
     ? completedCourseAt(getSteps(state), previousStepIndex)
     : null;
   if (state.currentStep !== previousStepIndex) boardHandoffToken += 1;
-  renderGame();
-  showScreen(state.finished ? 'result' : 'game');
+  if (state.finished) {
+    inStation = false;
+    renderResult();
+    showScreen('result');
+  } else if (multiplayer.connected) {
+    // 멀티는 관전 동기화를 위해 클로즈업 유지
+    inStation = true;
+    renderGame();
+    showScreen('game');
+  } else {
+    openKitchenMap();
+  }
   if (completedCourse) {
     courseCompleteView.show(completedCourse, {
       isLast: state.finished,
       nextCourse: getCurrent(state)?.course,
+      onContinue: state.finished
+        ? null
+        : () => {
+          if (!multiplayer.connected) openKitchenMap();
+        },
     });
   }
   const currentStep = getCurrent(state);
   if (state.currentStep === previousStepIndex + 1
     && isCuttingStep(previousStep)
-    && isCuttingStep(currentStep)) {
+    && isCuttingStep(currentStep)
+    && inStation) {
     void playBoardEnter();
   }
 }
@@ -1722,14 +1860,20 @@ function commitStep(accuracy) {
   const completedStepIndex = state.currentStep;
   const completedCourse = completedCourseAt(getSteps(state), completedStepIndex);
   submitStep(state, accuracy);
-  renderGame();
+  if (state.finished) {
+    inStation = false;
+    renderResult();
+    showScreen('result');
+    return;
+  }
+  openKitchenMap();
   if (completedCourse) {
     courseCompleteView.show(completedCourse, {
-      isLast: state.finished,
+      isLast: false,
       nextCourse: getCurrent(state)?.course,
+      onContinue: () => openKitchenMap(),
     });
   }
-  scheduleFitGameStage();
 }
 
 let resultRenderToken = 0;
@@ -1754,6 +1898,15 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
     showScreen(go.dataset.go);
   }
+  const stationBtn = event.target.closest('.map-station.is-next');
+  if (stationBtn) {
+    event.preventDefault();
+    enterCurrentStation();
+  }
+});
+
+on($('#backToMapBtn'), 'click', () => {
+  openKitchenMap();
 });
 
 function on(el, type, handler) {
@@ -1798,8 +1951,7 @@ on($('#confirmTeamBtn'), 'click', () => {
       $('#multiStatus').textContent = '준비 완료! 다른 셰프를 기다리는 중…';
       return;
     }
-    renderGame();
-    showScreen('game');
+    openKitchenMap();
   } catch (err) {
     console.error('게임 시작 실패:', err);
     alert(`게임 시작 오류: ${err.message}`);
@@ -2359,7 +2511,7 @@ function tickLiveMic(ts) {
     if (mixingImg) {
       const offset = getMixingOffset(mixingSession);
       const rotation = getMixingRotation(mixingSession);
-      const contentYOffset = 8;
+      const contentYOffset = -20;
       const bowlPos = getBowlPosition(mixingSession, 0, 0, 90);
       const baseX = bowlPos.x + offset.x;
       const baseY = bowlPos.y + contentYOffset + offset.y;
@@ -2486,14 +2638,6 @@ $('#micBtn').addEventListener('click', async () => {
       ? `${msg} · HTTPS 또는 localhost에서 실행해 주세요.`
       : msg;
     stopLiveMic();
-  }
-});
-
-// 화면 전환 버튼 핸들러 (data-go 속성)
-document.addEventListener('click', (event) => {
-  const button = event.target.closest('[data-go]');
-  if (button) {
-    showScreen(button.dataset.go);
   }
 });
 
