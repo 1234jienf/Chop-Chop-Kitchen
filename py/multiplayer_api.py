@@ -1,4 +1,4 @@
-"""In-memory, fixed three-player relay server for Chop-Chop Kitchen.
+"""Combined multiplayer WebSocket and GPT review server for Chop-Chop Kitchen.
 
 Run:  uvicorn py.multiplayer_api:app --host 0.0.0.0 --port 8001
 """
@@ -7,8 +7,25 @@ from typing import Dict, List
 import re
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+try:
+    from .review_api import router as review_router
+except ImportError:
+    from review_api import router as review_router
+
+app = FastAPI(title="Chop-Chop Kitchen API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://1234jienf.github.io",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
+app.include_router(review_router)
 ROOM_RE = re.compile(r"[^A-Z0-9_-]")
 
 
@@ -33,6 +50,11 @@ class Room:
 
 
 rooms: Dict[str, Room] = {}
+
+
+@app.get("/health")
+async def health():
+    return {"ok": True, "service": "multiplayer-and-review"}
 
 
 def clean_code(value: str) -> str:

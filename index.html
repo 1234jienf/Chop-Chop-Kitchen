@@ -47,9 +47,10 @@
           <p class="muted">각 셰프는 순서대로 자르기, 끓이기, 굽기 공정을 이어받습니다.</p>
           <div id="playerSetup" class="player-setup"></div>
           <div class="multiplayer-panel">
-            <b>3인 온라인 멀티</b>
+            <b>3인 온라인 멀티 + GPT 리뷰</b>
+            <div><input id="multiplayerServerUrl" type="url" placeholder="https://내-게임서버.example.com" aria-label="멀티 및 GPT 서버 주소"></div>
             <div><input id="roomCode" value="KITCHEN" maxlength="12" aria-label="방 코드"><input id="myPlayerName" value="셰프" maxlength="12" aria-label="내 이름"><button id="connectMultiBtn" class="secondary">방 참가</button></div>
-            <p id="multiStatus" class="muted">멀티 서버에 연결하면 각자 원하는 순서를 제출할 수 있습니다.</p>
+            <p id="multiStatus" class="muted">GitHub Pages에서는 외부에 배포한 HTTPS 멀티 서버 주소가 필요합니다.</p>
           </div>
           <div class="role-note"><span>💡</span><p><b>순서가 곧 전략이에요.</b><br>카드를 꾹 누른 채 원하는 위치로 끌어 놓으세요.</p></div>
           <div class="bottom-actions inline"><button class="text-button" data-go="lobby">← 이전</button><button id="confirmTeamBtn" class="primary">준비하고 시작하기 →</button></div>
@@ -263,6 +264,6 @@
     </main>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
-    <script type="module" src="./src/main.js?v=103"></script>
+    <script type="module" src="./src/main.js?v=105"></script>
   </body>
 </html>

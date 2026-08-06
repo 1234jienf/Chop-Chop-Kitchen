@@ -109,7 +109,7 @@ python -m http.server 8080
 
 브라우저에서 <http://localhost:8080>에 접속합니다.
 
-### 4. 멀티플레이 서버 실행
+### 4. 멀티플레이 + GPT 리뷰 서버 실행
 
 별도 PowerShell 창을 프로젝트 루트에서 열어 실행합니다.
 
@@ -141,14 +141,14 @@ Copy-Item .env.example .env
 OPENAI_API_KEY=your-api-key
 ```
 
-3. 별도 PowerShell 창에서 리뷰 서버를 실행합니다.
+3. 위에서 실행한 멀티플레이 서버가 리뷰 API도 함께 제공합니다. 별도 리뷰 서버는 실행하지 않습니다.
 
 ```powershell
-python -m uvicorn py.review_server:app --host 127.0.0.1 --port 8000
+python -m uvicorn py.multiplayer_api:app --host 0.0.0.0 --port 8001
 ```
 
-- 상태 확인: `GET http://127.0.0.1:8000/health`
-- 리뷰 생성: `POST http://127.0.0.1:8000/review`
+- 상태 확인: `GET http://127.0.0.1:8001/health`
+- 리뷰 생성: `POST http://127.0.0.1:8001/review`
 
 API 키는 브라우저로 전달되지 않고 Python 서버에서만 읽습니다. `.env`는 Git 추적에서 제외되어 있습니다.
 
@@ -157,7 +157,7 @@ API 키는 브라우저로 전달되지 않고 Python 서버에서만 읽습니�
 - 조용하고 반향이 적은 환경에서 헤드셋 마이크를 사용하면 인식이 안정적입니다.
 - `localhost`가 아닌 다른 PC의 일반 HTTP 주소에서는 브라우저 보안 정책 때문에 마이크가 제한될 수 있습니다.
 - 외부 배포에서는 웹 페이지를 HTTPS로, 멀티플레이 연결을 WSS로 제공하도록 클라이언트 URL과 서버 구성을 조정해야 합니다.
-- 현재 클라이언트의 리뷰 주소는 `http://127.0.0.1:8000/review`, 멀티플레이 주소는 `ws://현재 호스트:8001/ws`로 설정되어 있습니다.
+- 게임 화면에 입력한 서버 주소 하나를 멀티플레이의 `/ws`와 GPT 리뷰의 `/review`에 함께 사용합니다.
 - 프런트엔드는 Google Fonts와 jsDelivr의 TensorFlow.js·Speech Commands 라이브러리를 불러오므로 최초 실행 시 인터넷 연결이 필요할 수 있습니다.
 
 ## 프로젝트 구조

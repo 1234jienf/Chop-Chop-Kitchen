@@ -1,4 +1,4 @@
-const REVIEW_URL = 'http://127.0.0.1:8000/review';
+import { multiplayerApiUrl } from './multiplayer.js?v=52';
 
 function localCourseReview(course) {
   if (course.score >= 90) return `재료의 결이 또렷하게 살아 있고 마지막 향의 여운까지 우아하게 이어지는 접시였어.`;
@@ -19,7 +19,7 @@ export function localGuestReviews(result) {
 
 export async function requestGuestReviews(result) {
   try {
-    const response = await fetch(REVIEW_URL, {
+    const response = await fetch(multiplayerApiUrl('/review'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

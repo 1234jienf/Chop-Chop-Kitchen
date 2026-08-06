@@ -79,10 +79,10 @@ import {
   stopFinishSession,
   tickFinish,
 } from './sprinklepourplay.js?v=53';
-import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=51';
+import { KitchenMultiplayer, defaultMultiplayerUrl } from './multiplayer.js?v=52';
 import { completedCourseAt, createCourseCompleteView } from './coursecomplete.js?v=3';
 import { preloadTmAudio, startTmListen, stopTmListen } from './tmAudio.js?v=21';
-import { requestGuestReviews } from './dayreview.js?v=2';
+import { requestGuestReviews } from './dayreview.js?v=3';
 import { renderReceipt, renderReceiptLoading } from './receipt.js?v=2';
 
 const $ = (s) => document.querySelector(s);
@@ -168,6 +168,8 @@ const multiplayer = new KitchenMultiplayer({
   },
   onError: (message) => { $('#multiStatus').textContent = message; },
 });
+
+$('#multiplayerServerUrl').value = defaultMultiplayerUrl();
 let micOn = false;
 let liveStream = null;
 let peakArmed = false;
@@ -1928,7 +1930,7 @@ on($('#connectMultiBtn'), 'click', async () => {
   $('#multiStatus').textContent = '멀티 방에 연결하는 중…';
   try {
     await multiplayer.connect({
-      url: defaultMultiplayerUrl(),
+      url: $('#multiplayerServerUrl').value,
       room: $('#roomCode').value,
       name: $('#myPlayerName').value.trim() || '셰프',
     });
