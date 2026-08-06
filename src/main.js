@@ -167,6 +167,20 @@ const multiplayer = new KitchenMultiplayer({
       Object.assign(finishSession, activity.finish);
       syncFinishUi();
     }
+    if (isMixingStep(current) && activity.mixing) {
+      const sharedMixing = activity.mixing;
+      if (Number.isFinite(sharedMixing.scriptMatchProgress)) {
+        mixingSession.scriptMatchProgress = Math.max(0, Math.min(1, sharedMixing.scriptMatchProgress));
+      }
+      if (typeof sharedMixing.recognizedText === 'string') {
+        mixingSession.recognizedText = sharedMixing.recognizedText;
+      }
+      if (Number.isFinite(sharedMixing.elapsed)) mixingSession.elapsed = sharedMixing.elapsed;
+      if (Number.isFinite(sharedMixing.accuracy)) mixingSession.accuracy = sharedMixing.accuracy;
+      const scoreDisplay = $('#mixingScore');
+      if (scoreDisplay) scoreDisplay.textContent = `${getMixingScore(mixingSession)}%`;
+      renderMixingGuideMatch(mixingSession.guideScript, mixingSession.recognizedText);
+    }
   },
   onError: (message) => { $('#multiStatus').textContent = message; },
 });
@@ -1026,6 +1040,17 @@ function stopMixingSpeech() {
   mixingSpeechRec = null;
 }
 
+function renderMixingGuideMatch(targetScript = '', recognizedText = '') {
+  const guideText = $('#mixingGuideText');
+  if (!guideText) return;
+  guideText.replaceChildren(...Array.from(targetScript, (character, index) => {
+    const span = document.createElement('span');
+    span.textContent = character;
+    span.classList.toggle('matched', index < recognizedText.length && recognizedText[index] === character);
+    return span;
+  }));
+}
+
 function startMixingSpeech() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
@@ -1063,16 +1088,7 @@ function startMixingSpeech() {
       mixingSession.scriptMatchProgress = Math.min(1.0, matchCount / Math.max(1, normalizedTarget.length));
 
       // 가이드 텍스트 색상 업데이트
-      const guideText = document.getElementById('mixingGuideText');
-      if (guideText) {
-        let html = '';
-        for (let i = 0; i < targetScript.length; i++) {
-          const matched = i < chunk.length && chunk[i] === targetScript[i];
-          const cls = matched ? 'matched' : '';
-          html += `<span class="${cls}">${targetScript[i]}</span>`;
-        }
-        guideText.innerHTML = html;
-      }
+      renderMixingGuideMatch(targetScript, chunk);
     }
   };
 
@@ -1235,14 +1251,7 @@ function renderMixingStage(stepData) {
   }
 
   // 가이드 텍스트 표시
-  const guideText = $('#mixingGuideText');
-  if (guideText) {
-    let html = '';
-    for (let i = 0; i < guideScript.length; i++) {
-      html += `<span>${guideScript[i]}</span>`;
-    }
-    guideText.innerHTML = html;
-  }
+  renderMixingGuideMatch(guideScript);
 
   // 점수 표시
   const scoreDisplay = $('#mixingScore');
@@ -2337,6 +2346,12 @@ function tickLiveMic(ts) {
         reachedAt: finishSession.reachedAt,
         phaseScores: finishSession.phaseScores,
         complete: finishSession.complete,
+      } : null,
+      mixing: isMixingStep(current) ? {
+        scriptMatchProgress: mixingSession.scriptMatchProgress,
+        recognizedText: mixingSession.recognizedText,
+        elapsed: mixingSession.elapsed,
+        accuracy: mixingSession.accuracy,
       } : null,
     });
   }
