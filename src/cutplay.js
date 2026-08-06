@@ -13,7 +13,7 @@ const KNIFE_SPEED = 0.11;
 const PEAK_COOLDOWN_MS = 70;
 const POST_CUT_LOCK_MS = 200;
 const CUT_ADVANCE_MIN = 0.045;
-const CUT_SIZE_DEFAULT = 200;
+const CUT_SIZE_DEFAULT = 240;
 const MISS_COOLDOWN_MS = 120;
 const HOLD_GAP_MS = 300;
 const MAX_KNIFE_PASSES = 1;
@@ -62,7 +62,7 @@ export const CUT_STYLE = {
 
 function cutLayoutFor(session) {
   const custom = CUT_LAYOUT_BY_FILE[session?.ingredientFile];
-  if (custom) return { ...custom };
+  if (custom) return { w: Math.round(custom.w * 1.2), h: Math.round(custom.h * 1.2) };
   return { w: CUT_SIZE_DEFAULT, h: CUT_SIZE_DEFAULT };
 }
 
